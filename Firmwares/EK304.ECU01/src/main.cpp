@@ -200,9 +200,9 @@ void taskModu1(void)
   int iiAcx1 = iAcx1 + 105; // Aproximadamente 100 se refere a 0 G.
   int iiAcy1 = iAcy1 + 105; // Aproximadamente 200 se refere a 1 G.
   int iiAcz1 = iAcz1 + 105;
-  int fAcx1 = map(iiAcx1, 0, 220, 0, 200);
-  int fAcy1 = map(iiAcy1, 0, 220, 0, 200);
-  int fAcz1 = map(iiAcz1, 0, 220, 0, 200);
+  unsigned int fAcx1 = map(iiAcx1, 0, 220, 0, 200);
+  unsigned int fAcy1 = map(iiAcy1, 0, 220, 0, 200);
+  unsigned int fAcz1 = map(iiAcz1, 0, 220, 0, 200);
 
   int iGyx1 = int(Gyx1);    // Nova escala de 0 a 250.
   int iGyy1 = int(Gyy1);    // Essa escala se refere a -250 a 250 graus/s.
@@ -210,16 +210,16 @@ void taskModu1(void)
   int iiGyx1 = iGyx1 + 250; // Aproximadamente 125 se refere a 0 graus/s.
   int iiGyy1 = iGyy1 + 250; // Aproximadamente 250 se refere a 250 graus/s.
   int iiGyz1 = iGyz1 + 250;
-  int fGyx1 = map(iiGyx1, 0, 500, 0, 250);
-  int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
-  int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
+  unsigned int fGyx1 = map(iiGyx1, 0, 500, 0, 250);
+  unsigned int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
+  unsigned int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
 
-  Modulo1.msg.data[0] = fAcx1;
-  Modulo1.msg.data[1] = fAcy1;
-  Modulo1.msg.data[2] = fAcz1;
-  Modulo1.msg.data[3] = fGyx1;
-  Modulo1.msg.data[4] = fGyy1;
-  Modulo1.msg.data[5] = fGyz1;
+  Modulo1.msg.data[0] = fAcx1 & 0xFF;
+  Modulo1.msg.data[1] = fAcy1 & 0xFF;
+  Modulo1.msg.data[2] = fAcz1 & 0xFF;
+  Modulo1.msg.data[3] = fGyx1 & 0xFF;
+  Modulo1.msg.data[4] = fGyy1 & 0xFF;
+  Modulo1.msg.data[5] = fGyz1 & 0xFF;
 
   //PARA TESTE:
   Serial.print("AcX = ");
@@ -266,9 +266,9 @@ void taskModu2(void)
   int iiAcx2 = iAcx2 + 120; // Aproximadamente 100 se refere a 0 G.
   int iiAcy2 = iAcy2 + 120; // Aproximadamente 200 se refere a 1 G.
   int iiAcz2 = iAcz2 + 120;
-  int fAcx2 = map(iiAcx2, 0, 215, 0, 200);
-  int fAcy2 = map(iiAcy2, 0, 215, 0, 200);
-  int fAcz2 = map(iiAcz2, 0, 205, 0, 200);
+  unsigned int fAcx2 = map(iiAcx2, 0, 215, 0, 200);
+  unsigned int fAcy2 = map(iiAcy2, 0, 215, 0, 200);
+  unsigned int fAcz2 = map(iiAcz2, 0, 205, 0, 200);
 
   int iGyx2 = int(Gyx2);    // Nova escala de 0 a 250.
   int iGyy2 = int(Gyy2);    // Essa escala se refere a -250 a 250 graus/s.
@@ -276,16 +276,16 @@ void taskModu2(void)
   int iiGyx2 = iGyx2 + 250; // Aproximadamente 125 se refere a 0 graus/s.
   int iiGyy2 = iGyy2 + 250; // Aproximadamente 250 se refere a 250 graus/s.
   int iiGyz2 = iGyz2 + 250;
-  int fGyx2 = map(iiGyx2, 0, 500, 0, 250);
-  int fGyy2 = map(iiGyy2, 0, 500, 0, 250);
-  int fGyz2 = map(iiGyz2, 0, 500, 0, 250);
+  unsigned int fGyx2 = map(iiGyx2, 0, 500, 0, 250);
+  unsigned int fGyy2 = map(iiGyy2, 0, 500, 0, 250);
+  unsigned int fGyz2 = map(iiGyz2, 0, 500, 0, 250);
 
-  Modulo2.msg.data[0] = fAcx2;
-  Modulo2.msg.data[1] = fAcy2;
-  Modulo2.msg.data[2] = fAcz2;
-  Modulo2.msg.data[3] = fGyx2;
-  Modulo2.msg.data[4] = fGyy2;
-  Modulo2.msg.data[5] = fGyz2;
+  Modulo2.msg.data[0] = fAcx2 & 0xFF;
+  Modulo2.msg.data[1] = fAcy2 & 0xFF;
+  Modulo2.msg.data[2] = fAcz2 & 0xFF;
+  Modulo2.msg.data[3] = fGyx2 & 0xFF;
+  Modulo2.msg.data[4] = fGyy2 & 0xFF;
+  Modulo2.msg.data[5] = fGyz2 & 0xFF;
 
   //PARA TESTE:
   Serial.print("Ac2X = ");
@@ -305,11 +305,11 @@ void taskModu2(void)
 //SUSPENSAO
 void taskSusp(void)
 {
-  posicaoSuspDireita = map(analogRead(PIN_SUSP_DIREITA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90);
-  posicaoSuspEsquerda = map(analogRead(PIN_SUSP_ESQUERDA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90);
+  posicaoSuspDireita = (unsigned int)map(analogRead(PIN_SUSP_DIREITA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90);
+  posicaoSuspEsquerda = (unsigned int)map(analogRead(PIN_SUSP_ESQUERDA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90);
 
-  Suspensao.msg.data[0] = posicaoSuspDireita;  //Armazena o valor da leitura no primeiro byte do frame da suspensao
-  Suspensao.msg.data[1] = posicaoSuspEsquerda; //Armazena o valor da leitura no segundo byte do frame da suspensao
+  Suspensao.msg.data[0] = (unsigned int)posicaoSuspDireita & 0xFF;  //Armazena o valor da leitura no primeiro byte do frame da suspensao
+  Suspensao.msg.data[1] = (unsigned int)posicaoSuspEsquerda & 0xFF; //Armazena o valor da leitura no segundo byte do frame da suspensao
 }
 
 //ENVIO CAN

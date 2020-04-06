@@ -121,12 +121,12 @@ void setup()
     frame.msg.variant = 0x00;
     frame.msg.length = 6;
 
-    frame.msg.data[0] = ValorPre;
-    frame.msg.data[1] = FatorLambda;
-    frame.msg.data[2] = ValorTPS;
-    frame.msg.data[3] = TempAG;
-    frame.msg.data[4] = TempAR;
-    frame.msg.data[5] = RPM;
+    frame.msg.data[0] = ValorPre & 0xFF;
+    frame.msg.data[1] = (unsigned long)FatorLambda & 0xFF;
+    frame.msg.data[2] = ValorTPS & 0xFF;
+    frame.msg.data[3] = TempAG & 0xFF;
+    frame.msg.data[4] = TempAR & 0xFF;
+    frame.msg.data[5] = RPM & 0xFF;
 
     pinMode(LED_CPU, OUTPUT);
     pinMode(PIN_RPM, INPUT_PULLUP);

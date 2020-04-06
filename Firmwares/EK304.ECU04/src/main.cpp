@@ -113,7 +113,7 @@ void setup()
 
   SPI.begin();
   Wire.begin(); //Inicia I2C
-  Serial.begin(9600);
+  //Serial.begin(9600);
 
   //Modos das entradas
 
@@ -159,7 +159,7 @@ void setup()
   tmrPressaoEnable = true;
   tmrAceleEnable = true;
 
-  Serial.println("Acabou o setup");
+  //Serial.println("Acabou o setup");
 
 } //Aqui acaba o setup
 
@@ -210,7 +210,9 @@ void taskTemp(void)
   {
     //Sensor MTE4053 (temperatura)
 
-    canOUTROS.msg.data[1] = int((-1 / 0.038) * log((analogRead(PIN_TEMP_OLEO) * 1000) / (7656.8 * (5 - analogRead(PIN_TEMP_OLEO)))));
+    unsigned int sender = int((-1 / 0.038) * log((analogRead(PIN_TEMP_OLEO) * 1000) / (7656.8 * (5 - analogRead(PIN_TEMP_OLEO)))));
+
+    canOUTROS.msg.data[1] = sender & 0xFF;
 
     //Checar se precisa alterar para enviar via CAN
 
@@ -243,9 +245,12 @@ void taskSusp(void)
   {
     //Suspensao
 
-    canOUTROS.msg.data[3] = map(analogRead(PIN_SUSP_DIREITA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90); //Leitura do valor do TPS e regra de 3 para enviar via CAN
+    unsigned int sender1 = map(analogRead(PIN_SUSP_DIREITA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90); //Leitura do valor do TPS e regra de 3 para enviar via CAN
 
-    canOUTROS.msg.data[4] = map(analogRead(PIN_SUSP_ESQUERDA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90); //Análogo ao de cima
+    unsigned int sender2 = map(analogRead(PIN_SUSP_ESQUERDA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90); //Análogo ao de cima
+
+    canOUTROS.msg.data[3] = sender1 & 0xFF;
+    canOUTROS.msg.data[4] = sender2 & 0xFF;
 
     tmrSuspOverflow = false;
   }
@@ -310,9 +315,9 @@ void taskAcele(void) //Tarefa do acelerometro
     int iiAcx1 = iAcx1 + 105; // Aproximadamente 100 se refere a 0 G.
     int iiAcy1 = iAcy1 + 105; // Aproximadamente 200 se refere a 1 G.
     int iiAcz1 = iAcz1 + 105;
-    fAcx1 = map(iiAcx1, 0, 220, 0, 200);
-    fAcy1 = map(iiAcy1, 0, 220, 0, 200);
-    fAcz1 = map(iiAcz1, 0, 220, 0, 200);
+    fAcx1 = (unsigned int)map(iiAcx1, 0, 220, 0, 200);
+    fAcy1 = (unsigned int)map(iiAcy1, 0, 220, 0, 200);
+    fAcz1 = (unsigned int)map(iiAcz1, 0, 220, 0, 200);
 
     int iGyx1 = int(Gyx1);    // Nova escala de 0 a 250.
     int iGyy1 = int(Gyy1);    // Essa escala se refere a -250 a 250 graus/s.
@@ -320,16 +325,16 @@ void taskAcele(void) //Tarefa do acelerometro
     int iiGyx1 = iGyx1 + 250; // Aproximadamente 125 se refere a 0 graus/s.
     int iiGyy1 = iGyy1 + 250; // Aproximadamente 250 se refere a 250 graus/s.
     int iiGyz1 = iGyz1 + 250;
-    int fGyx1 = map(iiGyx1, 0, 500, 0, 250);
-    int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
-    int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
+    unsigned int fGyx1 = map(iiGyx1, 0, 500, 0, 250);
+    unsigned int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
+    unsigned int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
 
-    canACEL.msg.data[0] = fAcx1;
-    canACEL.msg.data[1] = fAcy1;
-    canACEL.msg.data[2] = fAcz1;
-    canACEL.msg.data[3] = fGyx1;
-    canACEL.msg.data[4] = fGyy1;
-    canACEL.msg.data[5] = fGyz1;
+    canACEL.msg.data[0] = fAcx1 & 0xFF;
+    canACEL.msg.data[1] = fAcy1 & 0xFF;
+    canACEL.msg.data[2] = fAcz1 & 0xFF;
+    canACEL.msg.data[3] = fGyx1 & 0xFF;
+    canACEL.msg.data[4] = fGyy1 & 0xFF;
+    canACEL.msg.data[5] = fGyz1 & 0xFF;
 
     CAN_SendData(&mcp2515, &canACEL);
 
