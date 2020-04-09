@@ -17,10 +17,10 @@ const int MPU1 = 0x68; // Se o pino ADO for conectado em GND o modulo assume ess
 const int MPU2 = 0x69; // Se o pino ADO for conectado em 5V ou 3,3V o modulo assume esse endereço
 
 //CRIACAO DE TASKS
-//void taskModu1(void); //Cria task do modulo 1
-//void taskModu2(void); //Cria task do modulo 2
-void taskSusp(void); //Cria a task para leitura e calcular a pressao
-void taskCAN(void);  //Cria a task para o envio de dados
+void taskModu1(void); //Cria task do modulo 1
+void taskModu2(void); //Cria task do modulo 2
+void taskSusp(void);  //Cria a task para leitura e calcular a pressao
+void taskCAN(void);   //Cria a task para o envio de dados
 void taskScheduler(void);
 void taskBlink(void);
 
@@ -36,7 +36,11 @@ void taskBlink(void);
 #define VALOR_MAX_LEITURA_SUSP 876 //Maximo valor de leitura na porta analogica
 #define TMR_BASE 100000            //Clock base para os multiplicadores
 #define TMR_CANSEND 500000         //Timer para envios da can
-#define TMR_BLINK 100000
+#define TMR_SUSP 100000            //Timer para gravar dados da suspensão
+#define TMR_ACELE1 100000          //Timer para gravar e enviar dados do acelerômetro 1
+#define TMR_ACELE2 100000          //Timer para gravar e enviar dados do acelerômetro 2
+
+//Variáveis pros acelerômetros
 
 float Ac1X, Ac1Y, Ac1Z, Gy1X, Gy1Y, Gy1Z;
 float Acx1, Acy1, Acz1, Gyx1, Gyy1, Gyz1;
@@ -45,13 +49,28 @@ float Acx2, Acy2, Acz2, Gyx2, Gyy2, Gyz2;
 float posicaoSuspDireita, posicaoSuspEsquerda;
 int fAcx1, fAcy1, fAcz1, fAcx2, fAcy2, fAcz2;
 int fGyx1, fGyy1, fGyz1, fGyx2, fGyy2, fGyz2;
+
+//Variáveis para controle de Tarefas
+
 bool tmrCansendOverflow = false;
-bool tmrCansendEnable = false;
+bool tmrCansendEnable = true;
 int tmrCansendCont = 0;
-int alterna = 0;
+
 bool tmrBlinkOverflow = false;
 bool tmrBlinkEnable = false;
 int tmrBlinkCount = 0;
+
+bool tmrSuspOverflow = false;
+bool tmrSuspEnable = true;
+int tmrSuspCount = 0;
+
+bool tmrAcele1Overflow = false;
+bool tmrAcele1Enable = true;
+int tmrAcele1Count = 0;
+
+bool tmrAcele2Overflow = false;
+bool tmrAcele2Enable = true;
+int tmrAcele2Count = 0;
 
 //CAN
 CAN_Frame Modulo1;
@@ -66,12 +85,18 @@ void setup()
   SPI.begin();
   Wire.begin(); //Inicia I2C
   Serial.begin(115200);
+
+  //Configura a CAN
   digitalWrite(LED_BUILTIN, HIGH);
   CAN_Init(&mcp2515, CAN_1000KBPS);
   digitalWrite(LED_BUILTIN, LOW);
+
+  //Configura o TimerOne
   Timer1.initialize(TMR_BASE);
   Timer1.attachInterrupt(taskScheduler);
+
   tmrCansendEnable = true;
+  tmrSuspEnable = true;
 
   //MODULO 1
   Modulo1.id.endOrigem = EK304CAN_ID_ADDRESS_ECU01;
@@ -116,12 +141,12 @@ void setup()
   Suspensao.msg.data[1] = posicaoSuspEsquerda;
   */
 
-  /*
   Wire.beginTransmission(MPU1); //Inicia transmissao para o endereco do Modulo 1
   Wire.write(0x6B);
   Wire.write(0);
   Wire.endTransmission(true);
 
+  /*
   Wire.beginTransmission(MPU2); //Inicia transmissao para o endereco do Modulo 2
   Wire.write(0x6B);
   Wire.write(0);
@@ -131,8 +156,8 @@ void setup()
 
 void loop()
 {
-  //taskModu1();
-  //taskModu2();
+  taskModu1();
+  taskModu2();
   taskSusp();
   taskCAN();
   taskBlink();
@@ -150,13 +175,34 @@ void taskScheduler(void)
     }
   }
 
-  if (tmrBlinkEnable)
+  if (tmrSuspEnable)
   {
-    tmrBlinkCount++;
-    if (tmrBlinkCount >= TMR_BLINK / TMR_BASE)
+    tmrSuspCount++;
+    if (tmrSuspCount >= TMR_SUSP / TMR_BASE)
     {
-      tmrBlinkCount = 0;
-      tmrBlinkOverflow = true;
+      tmrSuspCount = 0;
+      tmrSuspOverflow = true;
+    }
+  }
+
+  if (tmrAcele1Enable)
+  {
+    tmrAcele1Count++;
+    if (tmrAcele1Count >= TMR_ACELE1 / TMR_BASE)
+    {
+      tmrAcele1Count = 0;
+      tmrAcele1Overflow = true;
+    }
+  }
+
+  if (tmrAcele2Enable)
+  {
+    tmrAcele2Count++;
+    if (tmrAcele2Count >= TMR_ACELE2 / TMR_BASE)
+      ;
+    {
+      tmrAcele2Count = 0;
+      tmrAcele2Overflow = true;
     }
   }
 }
@@ -174,162 +220,170 @@ void taskBlink(void)
 //PRIMEIRO MODULO GY-521
 void taskModu1(void)
 {
-  Wire.beginTransmission(MPU1);     //Transmissao
-  Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
-  Wire.endTransmission(false);      //Finaliza transmissao
-  Wire.requestFrom(MPU1, 14, true); //Solicita os dados do sensor
+  if (tmrAcele1Overflow)
+  {
+    Wire.beginTransmission(MPU1);     //Transmissao
+    Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
+    Wire.endTransmission(false);      //Finaliza transmissao
+    Wire.requestFrom(MPU1, 14, true); //Solicita os dados do sensor
 
-  //Armazenamento dos valores do acelerometro e giroscopio
-  Ac1X = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
-  Ac1Y = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
-  Ac1Z = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
-  Gy1X = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
-  Gy1Y = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
-  Gy1Z = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+    //Armazenamento dos valores do acelerometro e giroscopio
+    Ac1X = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
+    Ac1Y = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+    Ac1Z = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+    Gy1X = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+    Gy1Y = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+    Gy1Z = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 
-  Acx1 = (Ac1X / 16384) * 100; //  Dividido por 16384 para converter os valores para 1G,
-  Acy1 = (Ac1Y / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
-  Acz1 = (Ac1Z / 16384) * 100; //  casas decimais.
-  Gyx1 = Gy1X / 131;           //  Dividido por 131 para converter os valores para graus/s
-  Gyy1 = Gy1Y / 131;
-  Gyz1 = Gy1Z / 131;
+    Acx1 = (Ac1X / 16384) * 100; //  Dividido por 16384 para converter os valores para 1G,
+    Acy1 = (Ac1Y / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
+    Acz1 = (Ac1Z / 16384) * 100; //  casas decimais.
+    Gyx1 = Gy1X / 131;           //  Dividido por 131 para converter os valores para graus/s
+    Gyy1 = Gy1Y / 131;
+    Gyz1 = Gy1Z / 131;
 
-  int iAcx1 = int(Acx1);    // Nova escala de 0 a 200.
-  int iAcy1 = int(Acy1);    // Essa escala se refere a -1 a 1 G.
-  int iAcz1 = int(Acz1);    // Aproximadamente 0 se refere a -1 G.
-  int iiAcx1 = iAcx1 + 105; // Aproximadamente 100 se refere a 0 G.
-  int iiAcy1 = iAcy1 + 105; // Aproximadamente 200 se refere a 1 G.
-  int iiAcz1 = iAcz1 + 105;
-  unsigned int fAcx1 = map(iiAcx1, 0, 220, 0, 200);
-  unsigned int fAcy1 = map(iiAcy1, 0, 220, 0, 200);
-  unsigned int fAcz1 = map(iiAcz1, 0, 220, 0, 200);
+    int iAcx1 = int(Acx1);    // Nova escala de 0 a 200.
+    int iAcy1 = int(Acy1);    // Essa escala se refere a -1 a 1 G.
+    int iAcz1 = int(Acz1);    // Aproximadamente 0 se refere a -1 G.
+    int iiAcx1 = iAcx1 + 105; // Aproximadamente 100 se refere a 0 G.
+    int iiAcy1 = iAcy1 + 105; // Aproximadamente 200 se refere a 1 G.
+    int iiAcz1 = iAcz1 + 105;
+    unsigned int fAcx1 = map(iiAcx1, 0, 220, 0, 200);
+    unsigned int fAcy1 = map(iiAcy1, 0, 220, 0, 200);
+    unsigned int fAcz1 = map(iiAcz1, 0, 220, 0, 200);
 
-  int iGyx1 = int(Gyx1);    // Nova escala de 0 a 250.
-  int iGyy1 = int(Gyy1);    // Essa escala se refere a -250 a 250 graus/s.
-  int iGyz1 = int(Gyz1);    // Aproximadamente 0 se refere a -250 graus/s.
-  int iiGyx1 = iGyx1 + 250; // Aproximadamente 125 se refere a 0 graus/s.
-  int iiGyy1 = iGyy1 + 250; // Aproximadamente 250 se refere a 250 graus/s.
-  int iiGyz1 = iGyz1 + 250;
-  unsigned int fGyx1 = map(iiGyx1, 0, 500, 0, 250);
-  unsigned int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
-  unsigned int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
+    int iGyx1 = int(Gyx1);    // Nova escala de 0 a 250.
+    int iGyy1 = int(Gyy1);    // Essa escala se refere a -250 a 250 graus/s.
+    int iGyz1 = int(Gyz1);    // Aproximadamente 0 se refere a -250 graus/s.
+    int iiGyx1 = iGyx1 + 250; // Aproximadamente 125 se refere a 0 graus/s.
+    int iiGyy1 = iGyy1 + 250; // Aproximadamente 250 se refere a 250 graus/s.
+    int iiGyz1 = iGyz1 + 250;
+    unsigned int fGyx1 = map(iiGyx1, 0, 500, 0, 250);
+    unsigned int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
+    unsigned int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
 
-  Modulo1.msg.data[0] = fAcx1 & 0xFF;
-  Modulo1.msg.data[1] = fAcy1 & 0xFF;
-  Modulo1.msg.data[2] = fAcz1 & 0xFF;
-  Modulo1.msg.data[3] = fGyx1 & 0xFF;
-  Modulo1.msg.data[4] = fGyy1 & 0xFF;
-  Modulo1.msg.data[5] = fGyz1 & 0xFF;
+    Modulo1.msg.data[0] = fAcx1 & 0xFF;
+    Modulo1.msg.data[1] = fAcy1 & 0xFF;
+    Modulo1.msg.data[2] = fAcz1 & 0xFF;
+    Modulo1.msg.data[3] = fGyx1 & 0xFF;
+    Modulo1.msg.data[4] = fGyy1 & 0xFF;
+    Modulo1.msg.data[5] = fGyz1 & 0xFF;
 
-  //PARA TESTE:
-  Serial.print("AcX = ");
-  Serial.print(fAcx1);
-  Serial.print("   AcY = ");
-  Serial.print(fAcy1);
-  Serial.print("   AcZ = ");
-  Serial.print(fAcz1);
-  Serial.print("   GyX = ");
-  Serial.print(fGyx1);
-  Serial.print("   GyY = ");
-  Serial.print(fGyy1);
-  Serial.print("   GyZ = ");
-  Serial.println(fGyz1);
-  Serial.println(" ");
+    //PARA TESTE:
+    Serial.print("AcX = ");
+    Serial.print(fAcx1);
+    Serial.print("   AcY = ");
+    Serial.print(fAcy1);
+    Serial.print("   AcZ = ");
+    Serial.print(fAcz1);
+    Serial.print("   GyX = ");
+    Serial.print(fGyx1);
+    Serial.print("   GyY = ");
+    Serial.print(fGyy1);
+    Serial.print("   GyZ = ");
+    Serial.println(fGyz1);
+    Serial.println(" ");
+
+    tmrAcele1Overflow = false;
+
+    CAN_SendData(&mcp2515, &Modulo1); // envia os dados de um CAN_Frame na CAN
+  }
 }
 
 //SEGUNDO MODULO GY-521
 void taskModu2(void)
 {
-  Wire.beginTransmission(MPU2);     //Transmissao
-  Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
-  Wire.endTransmission(false);      //Finaliza transmissao
-  Wire.requestFrom(MPU2, 14, true); //Solicita os dados do sensor
+  if (tmrAcele2Overflow)
+  {
+    Wire.beginTransmission(MPU2);     //Transmissao
+    Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
+    Wire.endTransmission(false);      //Finaliza transmissao
+    Wire.requestFrom(MPU2, 14, true); //Solicita os dados do sensor
 
-  //Armazenamento dos valores do acelerometro e giroscopio
-  Ac2X = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
-  Ac2Y = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
-  Ac2Z = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
-  Gy2X = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
-  Gy2Y = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
-  Gy2Z = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+    //Armazenamento dos valores do acelerometro e giroscopio
+    Ac2X = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
+    Ac2Y = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+    Ac2Z = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+    Gy2X = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+    Gy2Y = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+    Gy2Z = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 
-  Acx2 = (Ac2X / 16384) * 100; //  Dividido por 16384 para converter os valores para 1G,
-  Acy2 = (Ac2Y / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
-  Acz2 = (Ac2Z / 16384) * 100; //  casas decimais,
-  Gyx2 = Gy2X / 131;           //  Dividido por 131 para converter os valores para graus/s.
-  Gyy2 = Gy2Y / 131;
-  Gyz2 = Gy2Z / 131;
+    Acx2 = (Ac2X / 16384) * 100; //  Dividido por 16384 para converter os valores para 1G,
+    Acy2 = (Ac2Y / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
+    Acz2 = (Ac2Z / 16384) * 100; //  casas decimais,
+    Gyx2 = Gy2X / 131;           //  Dividido por 131 para converter os valores para graus/s.
+    Gyy2 = Gy2Y / 131;
+    Gyz2 = Gy2Z / 131;
 
-  int iAcx2 = int(Acx2);    // Nova escala de 0 a 200
-  int iAcy2 = int(Acy2);    // Essa escala se refere a -1 a 1 G
-  int iAcz2 = int(Acz2);    // Aproximadamente 0 se refere a -1 G.
-  int iiAcx2 = iAcx2 + 120; // Aproximadamente 100 se refere a 0 G.
-  int iiAcy2 = iAcy2 + 120; // Aproximadamente 200 se refere a 1 G.
-  int iiAcz2 = iAcz2 + 120;
-  unsigned int fAcx2 = map(iiAcx2, 0, 215, 0, 200);
-  unsigned int fAcy2 = map(iiAcy2, 0, 215, 0, 200);
-  unsigned int fAcz2 = map(iiAcz2, 0, 205, 0, 200);
+    int iAcx2 = int(Acx2);    // Nova escala de 0 a 200
+    int iAcy2 = int(Acy2);    // Essa escala se refere a -1 a 1 G
+    int iAcz2 = int(Acz2);    // Aproximadamente 0 se refere a -1 G.
+    int iiAcx2 = iAcx2 + 120; // Aproximadamente 100 se refere a 0 G.
+    int iiAcy2 = iAcy2 + 120; // Aproximadamente 200 se refere a 1 G.
+    int iiAcz2 = iAcz2 + 120;
+    unsigned int fAcx2 = map(iiAcx2, 0, 215, 0, 200);
+    unsigned int fAcy2 = map(iiAcy2, 0, 215, 0, 200);
+    unsigned int fAcz2 = map(iiAcz2, 0, 205, 0, 200);
 
-  int iGyx2 = int(Gyx2);    // Nova escala de 0 a 250.
-  int iGyy2 = int(Gyy2);    // Essa escala se refere a -250 a 250 graus/s.
-  int iGyz2 = int(Gyz2);    // Aproximadamente 0 se refere a -250 graus/s.
-  int iiGyx2 = iGyx2 + 250; // Aproximadamente 125 se refere a 0 graus/s.
-  int iiGyy2 = iGyy2 + 250; // Aproximadamente 250 se refere a 250 graus/s.
-  int iiGyz2 = iGyz2 + 250;
-  unsigned int fGyx2 = map(iiGyx2, 0, 500, 0, 250);
-  unsigned int fGyy2 = map(iiGyy2, 0, 500, 0, 250);
-  unsigned int fGyz2 = map(iiGyz2, 0, 500, 0, 250);
+    int iGyx2 = int(Gyx2);    // Nova escala de 0 a 250.
+    int iGyy2 = int(Gyy2);    // Essa escala se refere a -250 a 250 graus/s.
+    int iGyz2 = int(Gyz2);    // Aproximadamente 0 se refere a -250 graus/s.
+    int iiGyx2 = iGyx2 + 250; // Aproximadamente 125 se refere a 0 graus/s.
+    int iiGyy2 = iGyy2 + 250; // Aproximadamente 250 se refere a 250 graus/s.
+    int iiGyz2 = iGyz2 + 250;
+    unsigned int fGyx2 = map(iiGyx2, 0, 500, 0, 250);
+    unsigned int fGyy2 = map(iiGyy2, 0, 500, 0, 250);
+    unsigned int fGyz2 = map(iiGyz2, 0, 500, 0, 250);
 
-  Modulo2.msg.data[0] = fAcx2 & 0xFF;
-  Modulo2.msg.data[1] = fAcy2 & 0xFF;
-  Modulo2.msg.data[2] = fAcz2 & 0xFF;
-  Modulo2.msg.data[3] = fGyx2 & 0xFF;
-  Modulo2.msg.data[4] = fGyy2 & 0xFF;
-  Modulo2.msg.data[5] = fGyz2 & 0xFF;
+    Modulo2.msg.data[0] = fAcx2 & 0xFF;
+    Modulo2.msg.data[1] = fAcy2 & 0xFF;
+    Modulo2.msg.data[2] = fAcz2 & 0xFF;
+    Modulo2.msg.data[3] = fGyx2 & 0xFF;
+    Modulo2.msg.data[4] = fGyy2 & 0xFF;
+    Modulo2.msg.data[5] = fGyz2 & 0xFF;
 
-  //PARA TESTE:
-  Serial.print("Ac2X = ");
-  Serial.print(fAcx2);
-  Serial.print("   Ac2Y = ");
-  Serial.print(fAcy2);
-  Serial.print("   Ac2Z = ");
-  Serial.print(fAcz2);
-  Serial.print("   Gy2X = ");
-  Serial.print(fGyx2);
-  Serial.print("   Gy2Y = ");
-  Serial.print(fGyy2);
-  Serial.print("   Gy2Z = ");
-  Serial.println(fGyz2);
+    //PARA TESTE:
+    Serial.print("Ac2X = ");
+    Serial.print(fAcx2);
+    Serial.print("   Ac2Y = ");
+    Serial.print(fAcy2);
+    Serial.print("   Ac2Z = ");
+    Serial.print(fAcz2);
+    Serial.print("   Gy2X = ");
+    Serial.print(fGyx2);
+    Serial.print("   Gy2Y = ");
+    Serial.print(fGyy2);
+    Serial.print("   Gy2Z = ");
+    Serial.println(fGyz2);
+
+    tmrAcele2Overflow = false;
+
+    CAN_SendData(&mcp2515, &Modulo2); // envia os dados de um CAN_Frame na CAN
+  }
 }
 
 //SUSPENSAO
 void taskSusp(void)
 {
-  posicaoSuspDireita = (unsigned int)map(analogRead(PIN_SUSP_DIREITA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90);
-  posicaoSuspEsquerda = (unsigned int)map(analogRead(PIN_SUSP_ESQUERDA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90);
+  if (tmrSuspOverflow)
+  {
+    //Suspensao
 
-  Suspensao.msg.data[0] = (unsigned int)posicaoSuspDireita & 0xFF;  //Armazena o valor da leitura no primeiro byte do frame da suspensao
-  Suspensao.msg.data[1] = (unsigned int)posicaoSuspEsquerda & 0xFF; //Armazena o valor da leitura no segundo byte do frame da suspensao
+    posicaoSuspDireita = (unsigned int)map(analogRead(PIN_SUSP_DIREITA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90);
+    posicaoSuspEsquerda = (unsigned int)map(analogRead(PIN_SUSP_ESQUERDA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 90);
+
+    Suspensao.msg.data[0] = (unsigned int)posicaoSuspDireita & 0xFF;  //Armazena o valor da leitura no primeiro byte do frame da suspensao
+    Suspensao.msg.data[1] = (unsigned int)posicaoSuspEsquerda & 0xFF; //Armazena o valor da leitura no segundo byte do frame da suspensao
+
+    tmrSuspOverflow = false;
+
+    CAN_SendData(&mcp2515, &Suspensao); // envia os dados de um CAN_Frame na CAN
+  }
 }
 
 //ENVIO CAN
 void taskCAN(void)
 {
-  if (tmrCansendOverflow)
-  {
-    alterna = !alterna;
-    if (alterna)
-    {
-      CAN_SendData(&mcp2515, &Modulo1); // envia os dados de um CAN_Frame na CAN
-      CAN_SendData(&mcp2515, &Modulo2); // envia os dados de um CAN_Frame na CAN
-    }
-    else
-    {
-      CAN_SendData(&mcp2515, &Suspensao); // envia os dados de um CAN_Frame na CAN
-    }
-    tmrCansendOverflow = false;
-  }
-
   if (CAN_ReceiveData(&mcp2515, &Frameack) == MCP2515::ERROR_OK) // armazena em um CAN_Frame os dados recebidos da CAN
   {
     if (Frameack.id.tipo == EK304CAN_ID_TYPE_ACK)

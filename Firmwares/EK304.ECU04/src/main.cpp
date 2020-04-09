@@ -110,10 +110,22 @@ MCP2515 mcp2515(CAN_CS);
 
 void setup()
 {
+  //Serial.println("Começou o setup");
 
   SPI.begin();
   Wire.begin(); //Inicia I2C
   //Serial.begin(9600);
+
+  //Serial.println("Aehoo");
+
+  //Programação dos acelerômetros
+
+  Wire.beginTransmission(MPU1);
+  Wire.write(0x6B);
+
+  //Inicializa o MPU-6050
+  Wire.write(0);
+  Wire.endTransmission(true);
 
   //Modos das entradas
 
@@ -191,7 +203,7 @@ void taskVelocidade(void)
 
     //Serial.println(media);
 
-    media = map(media, 0, MAX_VELOCIDADE, 0, 255); //Faz uma regra de 3 com a variável media
+    //media = map(media, 0, MAX_VELOCIDADE, 0, 255); //Faz uma regra de 3 com a variável media
 
     canOUTROS.msg.data[0] = media; //Coloca o valor da média no pacote da CAN
 
@@ -298,6 +310,7 @@ void taskAcele(void) //Tarefa do acelerometro
     AcX = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
     AcY = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
     AcZ = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+    Wire.read() << 8 | Wire.read();       //0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L) <- Joga fora esses dados
     GyX = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
     GyY = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
     GyZ = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
@@ -309,25 +322,13 @@ void taskAcele(void) //Tarefa do acelerometro
     Gyy1 = GyY / 131;
     Gyz1 = GyZ / 131;
 
-    int iAcx1 = int(Acx1);    // Nova escala de 0 a 200.
-    int iAcy1 = int(Acy1);    // Essa escala se refere a -1 a 1 G.
-    int iAcz1 = int(Acz1);    // Aproximadamente 0 se refere a -1 G.
-    int iiAcx1 = iAcx1 + 105; // Aproximadamente 100 se refere a 0 G.
-    int iiAcy1 = iAcy1 + 105; // Aproximadamente 200 se refere a 1 G.
-    int iiAcz1 = iAcz1 + 105;
-    fAcx1 = (unsigned int)map(iiAcx1, 0, 220, 0, 200);
-    fAcy1 = (unsigned int)map(iiAcy1, 0, 220, 0, 200);
-    fAcz1 = (unsigned int)map(iiAcz1, 0, 220, 0, 200);
+    fAcx1 = (unsigned int)map((Acx1 + 105), 0, 220, 0, 200); // Nova escala de 0 a 200.             // Aproximadamente 100 se refere a 0 G.
+    fAcy1 = (unsigned int)map((Acy1 + 105), 0, 220, 0, 200); // Essa escala se refere a -1 a 1 G.   // Aproximadamente 200 se refere a 1 G.
+    fAcz1 = (unsigned int)map((Acz1 + 105), 0, 220, 0, 200); // Aproximadamente 0 se refere a -1 G.
 
-    int iGyx1 = int(Gyx1);    // Nova escala de 0 a 250.
-    int iGyy1 = int(Gyy1);    // Essa escala se refere a -250 a 250 graus/s.
-    int iGyz1 = int(Gyz1);    // Aproximadamente 0 se refere a -250 graus/s.
-    int iiGyx1 = iGyx1 + 250; // Aproximadamente 125 se refere a 0 graus/s.
-    int iiGyy1 = iGyy1 + 250; // Aproximadamente 250 se refere a 250 graus/s.
-    int iiGyz1 = iGyz1 + 250;
-    unsigned int fGyx1 = map(iiGyx1, 0, 500, 0, 250);
-    unsigned int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
-    unsigned int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
+    unsigned int fGyx1 = map((Gyx1 + 250), 0, 500, 0, 250); // Nova escala de 0 a 250.                     // Aproximadamente 125 se refere a 0 graus/s.
+    unsigned int fGyy1 = map((Gyy1 + 250), 0, 500, 0, 250); // Essa escala se refere a -250 a 250 graus/s. // Aproximadamente 250 se refere a 250 graus/s.
+    unsigned int fGyz1 = map((Gyz1 + 250), 0, 500, 0, 250); // Aproximadamente 0 se refere a -250 graus/s.
 
     canACEL.msg.data[0] = fAcx1 & 0xFF;
     canACEL.msg.data[1] = fAcy1 & 0xFF;
@@ -337,6 +338,23 @@ void taskAcele(void) //Tarefa do acelerometro
     canACEL.msg.data[5] = fGyz1 & 0xFF;
 
     CAN_SendData(&mcp2515, &canACEL);
+
+    /*
+    //PARA TESTE:
+    Serial.print("AcX = ");
+    Serial.print(fAcx1);
+    Serial.print("   AcY = ");
+    Serial.print(fAcy1);
+    Serial.print("   AcZ = ");
+    Serial.print(fAcz1);
+    Serial.print("   GyX = ");
+    Serial.print(fGyx1);
+    Serial.print("   GyY = ");
+    Serial.print(fGyy1);
+    Serial.print("   GyZ = ");
+    Serial.println(fGyz1);
+    Serial.println(" ");
+    */
 
     tmrAceleOverflow = false;
   }
