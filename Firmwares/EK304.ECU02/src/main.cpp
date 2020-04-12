@@ -105,7 +105,7 @@ MCP2515 mcp2515(CAN_CS);
 
 #define NUM_AMOSTRAGEM 5 //Numero de amostragens pra media do RPM
 #define NUM_IMAS 9       //Numero de imãs na roda fônica
-#define MAX_RPM 13000    //Numero max de RPM
+#define CONST_DIV_RPM 51 //Constante para divisão do RPM para enviar pela CAN
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -170,7 +170,7 @@ void taskRPM(void)
         media = RPM * contador;             //Multiplica o RPM por (idealmente) NUM_AMOSTRAGEM para ter a media entre os NUM_AMOSTRAGEM periodos
         media = media / NUM_IMAS;           //Divide a media pelo numero de imãs na roda fonica
 
-        media = map(media, 0, MAX_RPM, 0, 255);
+        media = media / CONST_DIV_RPM;
 
         frame.msg.data[5] = media;
 
@@ -215,7 +215,6 @@ void taskSensoresAnalogicos(void)
         {                                                                                   // Impede do valor em porcentagem ser negativo e maior que 100
             if (ValorLido[2] > 100)                                                         //
             {                                                                               //
-                                                                                            //
                 ValorTPS = 100;                                                             //
             }                                                                               //
         }                                                                                   //

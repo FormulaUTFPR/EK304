@@ -143,8 +143,8 @@ void setup()
 void loop()
 {
   taskCanCommunication();
-  //taskTemperaturaDoAr();
-  //taskPressaoDoAr();
+  taskTemperaturaDoAr();
+  taskPressaoDoAr();
   taskIndicadorDaMarcha();
   taskBlink();
 }
@@ -173,9 +173,9 @@ void taskCanCommunication(void)
     tmrCansendOverflow = false;
   }
 }
-/*
+
 //Faz leitura do sensor da tempertarura do ar
-void taskTemperaturaDoAr(void)ds
+void taskTemperaturaDoAr(void)
 {
   if (tmrTemperaturaDoArOverflow)
   {
@@ -196,8 +196,7 @@ void taskTemperaturaDoAr(void)ds
     tmrTemperaturaDoArOverflow = false;
   }
 }
-*/
-/*
+
 //Faz a leitura do sensor da pressao do ar
 void taskPressaoDoAr(void)
 {
@@ -220,7 +219,6 @@ void taskPressaoDoAr(void)
     tmrPressaoDoArOverflow = false;
   }
 }
-*/
 
 //Faz a leitura da posição da marcha
 void taskIndicadorDaMarcha(void)
@@ -265,7 +263,6 @@ int gearSelect()
   return gear;
 }
 
-/*
 float turboPressure()
 {
   float pressao;
@@ -282,7 +279,6 @@ float turboPressure()
 
   return pressao;
 }
-*/
 
 void taskScheduler(void)
 {
@@ -306,8 +302,6 @@ void taskScheduler(void)
     }
   }
 
-  /*
-
   if (tmrPressaoDoArEnable)
   {
     tmrPressaoDoArCount++;
@@ -327,8 +321,6 @@ void taskScheduler(void)
       tmrTemperaturaDoArOverflow = true;
     }
   }
-
-*/
 
   if (tmrIndicadorDaMarchaEnable)
   {

@@ -45,6 +45,17 @@
 #define SENSOR_GPS_FIX_ID 0x08
 #define SENSOR_GPS_HDOP_ID 0x09
 #define SENSOR_VOLTAGE_BATTERY_ID 0x0A
+#define SENSOR_MAP_ID 0x0B
+#define SENSOR_AIR_INTAKE_TEMPERATURE_ID 0x0C
+#define SENSOR_WATER_TEMPERATURE_ID 0x0D
+#define SENSOR_TPS_ID 0x0E
+#define SENSOR_LAMBDA_ID 0x0F
+#define SENSOR_OIL_PRESSURE_ID 0x10
+#define SENSOR_OIL_TEMPERATURER_ID 0x11
+#define SENSOR_REAR_LEFT_SUSPENSION_ID 0x12
+#define SENSOR_REAR_RIGHT_SUSPENSION_ID 0x13
+#define SENSOR_FRONT_LEFT_SUSPENSION_ID 0x14
+#define SENSOR_FRONT_RIGHT_SUSPENSION_ID 0x15
 
 // parâmetros dos sensores
 #define SENSOR_GEAR_MAX 6
@@ -53,6 +64,9 @@
 #define SENSOR_VBAT_SAMPLES 10
 #define SENSOR_VBAT_OVERVOLTAGE 14.5
 #define SENSOR_VBAT_UNDERVOLTAGE 10.5
+#define CONST_RPM 51             //255*51 =~ 13000 RPM
+#define SENSOR_SUSPENSION_MAX 90 //Ângulo máximo da suspensão
+#define SENSOR_SUSPENSION_MIN 0  //Ângulo mínimo da suspensão
 
 // strings
 #define STRING_DISPLAY_TEAMNAME "Formula UTFPR"
@@ -596,6 +610,17 @@ void setupSensors()
   sensors[SENSOR_GPS_FIX_ID] = Sensor("GPS Fix", "o", SENSOR_GPS_FIX_ID);
   sensors[SENSOR_GPS_HDOP_ID] = Sensor("GPS Fix", "", SENSOR_GPS_HDOP_ID);
   sensors[SENSOR_VOLTAGE_BATTERY_ID] = Sensor("Main Supply", "V", SENSOR_VOLTAGE_BATTERY_ID);
+  sensors[SENSOR_MAP_ID] = Sensor("MAP", "kPa", SENSOR_MAP_ID);
+  sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID] = Sensor("Air Temp.", "°C", SENSOR_AIR_INTAKE_TEMPERATURE_ID);
+  sensors[SENSOR_WATER_TEMPERATURE_ID] = Sensor("Water Temp.", "°C", SENSOR_WATER_TEMPERATURE_ID);
+  sensors[SENSOR_TPS_ID] = Sensor("TPS", "%", SENSOR_TPS_ID);
+  sensors[SENSOR_LAMBDA_ID] = Sensor("Lambda", "%", SENSOR_LAMBDA_ID);
+  sensors[SENSOR_OIL_PRESSURE_ID] = Sensor("Oil Pressure", "kPa", SENSOR_OIL_PRESSURE_ID);
+  sensors[SENSOR_OIL_TEMPERATURER_ID] = Sensor("Oil Temp.", "°C", SENSOR_OIL_TEMPERATURER_ID);
+  sensors[SENSOR_REAR_LEFT_SUSPENSION_ID] = Sensor("RL Susp.", "°", SENSOR_REAR_LEFT_SUSPENSION_ID);
+  sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID] = Sensor("RR Susp", "°", SENSOR_REAR_RIGHT_SUSPENSION_ID);
+  sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID] = Sensor("FL Susp", "°", SENSOR_FRONT_LEFT_SUSPENSION_ID);
+  sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID] = Sensor("FR Susp", "°", SENSOR_FRONT_RIGHT_SUSPENSION_ID);
 }
 
 /**************************************************************************************************************************************/
@@ -1201,296 +1226,343 @@ void taskCAN()
     }
     else
     {
-    }
+      switch (frame.id.endOrigem)
+      {
+      case EK304CAN_ID_ADDRESS_ECU01:
+        switch (frame.msg.variant)
+        {
+        case 0x00:
+          //Acelerômetro 1
+          break;
+        case 0x01:
+          //Acelerômetro 2
+          break;
+        case 0x02
+          sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor = frame.msg.data[0]/(2.8+1/30);
+          sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = frame.msg.data[1]/(2.8+1/30);
+        }
+        break;
+      case EK304CAN_ID_ADDRESS_ECU02:
+          sensors[SENSOR_MAP_ID].valor = frame.msg.data[0];
+          sensors[SENSOR_LAMBDA_ID].valor = frame.msg.data[1];
+          sensors[SENSOR_TPS_ID].valor = frame.msg.data[2];
+          sensors[SENSOR_WATER_TEMPERATURE_ID].valor = frame.msg.data[3];
+          sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].valor = frame.msg.data[4];
+          sensors[SENSOR_ROTATION_ID].valor = frame.msg.data[5] * CONST_RPM;
+          break;
+        case EK304CAN_ID_ADDRESS_ECU03:
+          sensors[SENSOR_GEAR_ID].valor = frame.msg.data[4];
+          break;
+        case EK304CAN_ID_ADDRESS_ECU04:
+          switch (frame.msg.variant)
+          {
+          case 0x00:
+            sensors[SENSOR_SPEED_ID].valor = frame.msg.data[0];
+            sensors[SENSOR_MOTOR_TEMPERATURE_ID].valor = frame.msg.data[1];
+            sensors[SENSOR_OIL_PRESSURE_ID].valor = frame.msg.data[2];
+            sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor = frame.msg.data[3] / (2.8 + 1 / 30);
+            sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = frame.msg.data[4] / (2.8 + 1 / 30);
 
-    Serial.print(frame.id.endOrigem, HEX);
-    Serial.print(frame.id.endDestino, HEX);
-    Serial.print(frame.id.tipo, HEX);
+            Serial.println(sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor);
+            break;
+          case 0x01:
+            //Acelerômetro, fazer objeto?
+            break;
+          }
+          break;
+        case EK304CAN_ID_ADDRESS_ECU15:
+          break;
+        }
+      }
 
-    Serial.print(" ");
-    Serial.print(frame.msg.length);
-    Serial.print(" ");
-    Serial.print(frame.msg.variant, HEX);
-    Serial.print(" ");
+      Serial.print(frame.id.endOrigem, HEX);
+      Serial.print(frame.id.endDestino, HEX);
+      Serial.print(frame.id.tipo, HEX);
 
-    for (int i = 0; i < frame.msg.length; i++)
-    {
-      Serial.print(frame.msg.data[i], HEX);
       Serial.print(" ");
+      Serial.print(frame.msg.length);
+      Serial.print(" ");
+      Serial.print(frame.msg.variant, HEX);
+      Serial.print(" ");
+
+      for (int i = 0; i < frame.msg.length; i++)
+      {
+        Serial.print(frame.msg.data[i], HEX);
+        Serial.print(" ");
+      }
+
+      Serial.println();
     }
 
-    Serial.println();
-  }
-
-  if (tmrCanTestOverflow)
-  {
-    if (EK304CAN_ECU01_ENABLED)
-      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU01);
-    if (EK304CAN_ECU02_ENABLED)
-      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU02);
-    if (EK304CAN_ECU03_ENABLED)
-      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU03);
-    if (EK304CAN_ECU04_ENABLED)
-      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU04);
-    if (EK304CAN_ECU15_ENABLED)
-      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU15);
-
-    tmrCanTestOverflow = false;
-  }
-}
-
-void taskSerial()
-{
-  while (Serial3.available())
-  {
-    char c = Serial3.read();
-    Serial.print(c);
-  }
-
-  while (Serial.available())
-  {
-    char c = Serial.read();
-    Serial3.print(c);
-  }
-}
-
-/**************************************************************************************************************************************/
-/* FUNÇÕES DE CONFIGURAÇÕES                                                                                                           */
-/**************************************************************************************************************************************/
-// configura a serial
-void setupSerial()
-{
-  Serial.begin(9600);  // configura baud rate da serial0 para 115200bps
-  Serial3.begin(9600); // configura baud rate da serial3 para 115200bps
-}
-
-// configura o modo do display a ser utilizado
-void setupDisplay()
-{
-  // configura de acordo com o modelo de display
-  if (u8g.getMode() == U8G_MODE_R3G3B2)
-    u8g.setColorIndex(255);
-  else if (u8g.getMode() == U8G_MODE_GRAY2BIT)
-    u8g.setColorIndex(1);
-  else if (u8g.getMode() == U8G_MODE_BW)
-    u8g.setColorIndex(1);
-
-  // tela inicial: logo equipe
-  u8gDraw(1);
-}
-
-// configura o modulo transciever CAN
-void setupCAN()
-{
-  SPI.begin();
-  CAN_Init(&mcp2515, CAN_1000KBPS);
-  tmrCanTestEnabled = true;
-}
-
-// configura módulo encoder
-void setupEncoder()
-{
-  // pinos confugrados com pullup interno
-  pinMode(ENC_CL, INPUT_PULLUP);
-  pinMode(ENC_DT, INPUT_PULLUP);
-  pinMode(ENC_SW, INPUT_PULLUP);
-
-  // configura interrupções para os pinos de clock e data
-  attachInterrupt(digitalPinToInterrupt(ENC_CL), isrEncoderSpin, FALLING);
-  attachInterrupt(digitalPinToInterrupt(ENC_SW), isrEncoderClick, FALLING);
-
-  intEncoderClockEnabled = true;
-}
-
-void setupTimer()
-{
-  Timer1.initialize(TMR_BASE);
-  Timer1.attachInterrupt(taskScheduler);
-}
-
-void setupInit()
-{
-  pinMode(LED_BUILTIN, OUTPUT);
-  stateMachine = STATE_STARTUP_LOGO;
-
-  tmrStartupLogoEnabled = true;
-  telaAtual = 1;
-  flagUpdateDisplay = true;
-}
-
-void setupSDModule()
-{
-  if (!sdCard.Init(SPI_CS_SD))
-    Serial.println("Erro ao iniciar");
-  if (!sdCard.Write("xx.txt", "asoksaosak"))
-    Serial.println("Erro ao escrever");
-  if (!sdCard.Read("xx.txt"))
-    Serial.println("Erro ao ler");
-  if (!sdCard.Remove(""))
-    Serial.println("Erro ao apagar");
-}
-
-/**************************************************************************************************************************************/
-/* FUNÇÕES DE DESENHO DAS TELAS                                                                                                       */
-/**************************************************************************************************************************************/
-void u8gPrepare()
-{
-  u8g.setFont(u8g_font_6x10);
-  u8g.setFontRefHeightExtendedText();
-  u8g.setDefaultForegroundColor();
-  u8g.setFontPosTop();
-}
-
-void u8gDraw(int screen)
-{
-  u8gPrepare();
-  u8g.firstPage();
-  do
-  {
-    switch (screen)
+    if (tmrCanTestOverflow)
     {
-    case 1:
-      scrLogo();
-      break;
-    case 2:
-      scrWelcome();
-      break;
-    case 3:
-      scrOverview();
-      break;
+      if (EK304CAN_ECU01_ENABLED)
+        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU01);
+      if (EK304CAN_ECU02_ENABLED)
+        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU02);
+      if (EK304CAN_ECU03_ENABLED)
+        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU03);
+      if (EK304CAN_ECU04_ENABLED)
+        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU04);
+      if (EK304CAN_ECU15_ENABLED)
+        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU15);
+
+      tmrCanTestOverflow = false;
     }
-  } while (u8g.nextPage());
-}
+  }
 
-void scrLogo()
-{
-  u8g.drawXBMP(0, 0, 128, 64, logo_bits);
-  u8g.setFont(u8g_font_u8glib_4);
-  u8g.drawStr(0, 63, FIRMWARE_VERSION);
-}
-
-void scrWelcome()
-{
-  u8g.setFont(u8g_font_unifont);
-  u8g.drawStr(10, 35, STRING_DISPLAY_TEAMNAME);
-  u8g.drawStr(10, 36, STRING_DISPLAY_TEAMNAME);
-  u8g.setFont(u8g_font_6x10);
-  u8g.drawStr(45, 45, STRING_DISPLAY_CARNAME);
-  u8g.setFont(u8g_font_u8glib_4);
-  u8g.drawStr(0, 63, FIRMWARE_VERSION);
-}
-
-void scrOverview()
-{
-  String sTemp = "";
-  char cTemp[STRING_DISPLAY_DATETIME_MAX + 1];
-
-  // mostra data e hora atuais
-  u8g.setFont(u8g_font_u8glib_4);
-  horaAtual.ToStringCenter(STRING_DISPLAY_DATETIME_MAX).toCharArray(cTemp, STRING_DISPLAY_DATETIME_MAX + 1);
-  u8g.drawStr(0, 5, cTemp);
-
-  // mostra as informações dos sensores selecionadas
-  sTemp = "";
-  sTemp.concat(senOverview[0].nome);
-  sTemp.concat(": ");
-  sTemp.concat(senOverview[0].valor);
-  sTemp.concat(" ");
-  sTemp.concat(senOverview[0].unidade);
-  sTemp.toCharArray(cTemp, 20);
-  u8g.drawStr(0, 55, cTemp);
-
-  sTemp = "";
-  sTemp.concat(senOverview[1].nome);
-  sTemp.concat(": ");
-  sTemp.concat(senOverview[1].valor);
-  sTemp.concat(" ");
-  sTemp.concat(senOverview[1].unidade);
-  sTemp.toCharArray(cTemp, 20);
-  u8g.drawStr(0, 63, cTemp);
-
-  // mostra a velocidade
-  u8g.setFont(u8g_font_fub20);
-
-  sTemp = "";
-  sTemp.concat((int)(sensors[SENSOR_SPEED_ID].valor));
-  sTemp.toCharArray(cTemp, 4);
-  if (sensors[SENSOR_SPEED_ID].valor >= 100)
-    u8g.drawStr(30, 33, cTemp);
-  else if (sensors[SENSOR_SPEED_ID].valor >= 10)
-    u8g.drawStr(37, 33, cTemp);
-  else
-    u8g.drawStr(45, 33, cTemp);
-
-  u8g.setFont(u8g_font_5x7);
-
-  sTemp = "";
-  sTemp.concat(sensors[SENSOR_SPEED_ID].unidade);
-  sTemp.toCharArray(cTemp, 20);
-  u8g.drawStr(80, 33, cTemp);
-
-  // mostra a marcha
-  u8g.setFont(u8g_font_5x7);
-
-  if (sensors[SENSOR_GEAR_ID].valor >= SENSOR_GEAR_MIN && sensors[SENSOR_GEAR_ID].valor <= SENSOR_GEAR_MAX)
+  void taskSerial()
   {
-    sTemp = sensors[SENSOR_GEAR_ID].nome;
-    sTemp += ": ";
-    if ((int)(sensors[SENSOR_GEAR_ID].valor) == 0)
-      sTemp += "N";
-    else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 1)
-      sTemp += "1st";
-    else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 2)
-      sTemp += "2nd";
-    else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 3)
-      sTemp += "3rd";
-    else
+    while (Serial3.available())
     {
-      sTemp += (int)(sensors[SENSOR_GEAR_ID].valor);
-      sTemp += "th";
+      char c = Serial3.read();
+      Serial.print(c);
     }
 
-    sTemp.toCharArray(cTemp, 20);
-    u8g.drawStr(80, 23, cTemp);
-
-    // mostra erros na tela
-    if (flagErrorsFound)
+    while (Serial.available())
     {
+      char c = Serial.read();
+      Serial3.print(c);
+    }
+  }
 
-      u8g.drawBox(0, 37, 128, 9);
-      u8g.setColorIndex(0);
-      u8g.drawStr(2, 44, cErrorMsg);
+  /**************************************************************************************************************************************/
+  /* FUNÇÕES DE CONFIGURAÇÕES                                                                                                           */
+  /**************************************************************************************************************************************/
+  // configura a serial
+  void setupSerial()
+  {
+    Serial.begin(9600);  // configura baud rate da serial0 para 115200bps
+    Serial3.begin(9600); // configura baud rate da serial3 para 115200bps
+  }
+
+  // configura o modo do display a ser utilizado
+  void setupDisplay()
+  {
+    // configura de acordo com o modelo de display
+    if (u8g.getMode() == U8G_MODE_R3G3B2)
+      u8g.setColorIndex(255);
+    else if (u8g.getMode() == U8G_MODE_GRAY2BIT)
       u8g.setColorIndex(1);
+    else if (u8g.getMode() == U8G_MODE_BW)
+      u8g.setColorIndex(1);
+
+    // tela inicial: logo equipe
+    u8gDraw(1);
+  }
+
+  // configura o modulo transciever CAN
+  void setupCAN()
+  {
+    SPI.begin();
+    CAN_Init(&mcp2515, CAN_1000KBPS);
+    tmrCanTestEnabled = true;
+  }
+
+  // configura módulo encoder
+  void setupEncoder()
+  {
+    // pinos confugrados com pullup interno
+    pinMode(ENC_CL, INPUT_PULLUP);
+    pinMode(ENC_DT, INPUT_PULLUP);
+    pinMode(ENC_SW, INPUT_PULLUP);
+
+    // configura interrupções para os pinos de clock e data
+    attachInterrupt(digitalPinToInterrupt(ENC_CL), isrEncoderSpin, FALLING);
+    attachInterrupt(digitalPinToInterrupt(ENC_SW), isrEncoderClick, FALLING);
+
+    intEncoderClockEnabled = true;
+  }
+
+  void setupTimer()
+  {
+    Timer1.initialize(TMR_BASE);
+    Timer1.attachInterrupt(taskScheduler);
+  }
+
+  void setupInit()
+  {
+    pinMode(LED_BUILTIN, OUTPUT);
+    stateMachine = STATE_STARTUP_LOGO;
+
+    tmrStartupLogoEnabled = true;
+    telaAtual = 1;
+    flagUpdateDisplay = true;
+  }
+
+  void setupSDModule()
+  {
+    if (!sdCard.Init(SPI_CS_SD))
+      Serial.println("Erro ao iniciar");
+    if (!sdCard.Write("xx.txt", "asoksaosak;"))
+      Serial.println("Erro ao escrever");
+    if (!sdCard.Read("xx.txt"))
+      Serial.println("Erro ao ler");
+    if (!sdCard.Remove("xx.txt"))
+      Serial.println("Erro ao apagar");
+  }
+
+  /**************************************************************************************************************************************/
+  /* FUNÇÕES DE DESENHO DAS TELAS                                                                                                       */
+  /**************************************************************************************************************************************/
+  void u8gPrepare()
+  {
+    u8g.setFont(u8g_font_6x10);
+    u8g.setFontRefHeightExtendedText();
+    u8g.setDefaultForegroundColor();
+    u8g.setFontPosTop();
+  }
+
+  void u8gDraw(int screen)
+  {
+    u8gPrepare();
+    u8g.firstPage();
+    do
+    {
+      switch (screen)
+      {
+      case 1:
+        scrLogo();
+        break;
+      case 2:
+        scrWelcome();
+        break;
+      case 3:
+        scrOverview();
+        break;
+      }
+    } while (u8g.nextPage());
+  }
+
+  void scrLogo()
+  {
+    u8g.drawXBMP(0, 0, 128, 64, logo_bits);
+    u8g.setFont(u8g_font_u8glib_4);
+    u8g.drawStr(0, 63, FIRMWARE_VERSION);
+  }
+
+  void scrWelcome()
+  {
+    u8g.setFont(u8g_font_unifont);
+    u8g.drawStr(10, 35, STRING_DISPLAY_TEAMNAME);
+    u8g.drawStr(10, 36, STRING_DISPLAY_TEAMNAME);
+    u8g.setFont(u8g_font_6x10);
+    u8g.drawStr(45, 45, STRING_DISPLAY_CARNAME);
+    u8g.setFont(u8g_font_u8glib_4);
+    u8g.drawStr(0, 63, FIRMWARE_VERSION);
+  }
+
+  void scrOverview()
+  {
+    String sTemp = "";
+    char cTemp[STRING_DISPLAY_DATETIME_MAX + 1];
+
+    // mostra data e hora atuais
+    u8g.setFont(u8g_font_u8glib_4);
+    horaAtual.ToStringCenter(STRING_DISPLAY_DATETIME_MAX).toCharArray(cTemp, STRING_DISPLAY_DATETIME_MAX + 1);
+    u8g.drawStr(0, 5, cTemp);
+
+    // mostra as informações dos sensores selecionadas
+    sTemp = "";
+    sTemp.concat(senOverview[0].nome);
+    sTemp.concat(": ");
+    sTemp.concat(senOverview[0].valor);
+    sTemp.concat(" ");
+    sTemp.concat(senOverview[0].unidade);
+    sTemp.toCharArray(cTemp, 20);
+    u8g.drawStr(0, 55, cTemp);
+
+    sTemp = "";
+    sTemp.concat(senOverview[1].nome);
+    sTemp.concat(": ");
+    sTemp.concat(senOverview[1].valor);
+    sTemp.concat(" ");
+    sTemp.concat(senOverview[1].unidade);
+    sTemp.toCharArray(cTemp, 20);
+    u8g.drawStr(0, 63, cTemp);
+
+    // mostra a velocidade
+    u8g.setFont(u8g_font_fub20);
+
+    sTemp = "";
+    sTemp.concat((int)(sensors[SENSOR_SPEED_ID].valor));
+    sTemp.toCharArray(cTemp, 4);
+    if (sensors[SENSOR_SPEED_ID].valor >= 100)
+      u8g.drawStr(30, 33, cTemp);
+    else if (sensors[SENSOR_SPEED_ID].valor >= 10)
+      u8g.drawStr(37, 33, cTemp);
+    else
+      u8g.drawStr(45, 33, cTemp);
+
+    u8g.setFont(u8g_font_5x7);
+
+    sTemp = "";
+    sTemp.concat(sensors[SENSOR_SPEED_ID].unidade);
+    sTemp.toCharArray(cTemp, 20);
+    u8g.drawStr(80, 33, cTemp);
+
+    // mostra a marcha
+    u8g.setFont(u8g_font_5x7);
+
+    if (sensors[SENSOR_GEAR_ID].valor >= SENSOR_GEAR_MIN && sensors[SENSOR_GEAR_ID].valor <= SENSOR_GEAR_MAX)
+    {
+      sTemp = sensors[SENSOR_GEAR_ID].nome;
+      sTemp += ": ";
+      if ((int)(sensors[SENSOR_GEAR_ID].valor) == 0)
+        sTemp += "N";
+      else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 1)
+        sTemp += "1st";
+      else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 2)
+        sTemp += "2nd";
+      else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 3)
+        sTemp += "3rd";
+      else
+      {
+        sTemp += (int)(sensors[SENSOR_GEAR_ID].valor);
+        sTemp += "th";
+      }
+
+      sTemp.toCharArray(cTemp, 20);
+      u8g.drawStr(80, 23, cTemp);
+
+      // mostra erros na tela
+      if (flagErrorsFound)
+      {
+
+        u8g.drawBox(0, 37, 128, 9);
+        u8g.setColorIndex(0);
+        u8g.drawStr(2, 44, cErrorMsg);
+        u8g.setColorIndex(1);
+      }
     }
   }
-}
 
-/**************************************************************************************************************************************/
-/* FUNÇÕES DE TRATAMENTO DE INTERRUPÇÃO                                                                                               */
-/**************************************************************************************************************************************/
-void isrEncoderSpin()
-{
-  if (intEncoderClockEnabled)
+  /**************************************************************************************************************************************/
+  /* FUNÇÕES DE TRATAMENTO DE INTERRUPÇÃO                                                                                               */
+  /**************************************************************************************************************************************/
+  void isrEncoderSpin()
   {
-    intEncoderClockEnabled = false;
-    if (digitalRead(ENC_CL))
-      flagEncoderClockwiseSpin = !digitalRead(ENC_DT);
-    else
-      flagEncoderClockwiseSpin = digitalRead(ENC_DT);
+    if (intEncoderClockEnabled)
+    {
+      intEncoderClockEnabled = false;
+      if (digitalRead(ENC_CL))
+        flagEncoderClockwiseSpin = !digitalRead(ENC_DT);
+      else
+        flagEncoderClockwiseSpin = digitalRead(ENC_DT);
 
-    flagEncoderSpinEvent = true;
+      flagEncoderSpinEvent = true;
+    }
   }
-}
 
-void isrEncoderClick()
-{
-  if (intEncoderButtonEnabled)
+  void isrEncoderClick()
   {
-    intEncoderButtonEnabled = false;
-    flagEncoderClickEvent = true;
+    if (intEncoderButtonEnabled)
+    {
+      intEncoderButtonEnabled = false;
+      flagEncoderClickEvent = true;
+    }
   }
-}
 
-/**************************************************************************************************************************************/
-/* FUNÇÕES GERAIS                                                                                                                     */
-/**************************************************************************************************************************************/
+  /**************************************************************************************************************************************/
+  /* FUNÇÕES GERAIS                                                                                                                     */
+  /**************************************************************************************************************************************/
