@@ -25,8 +25,6 @@ void taskScheduler(void);
 void taskBlink(void);
 
 //DEFINICAO DAS PORTAS
-#define PIN_MODULO1 A0       //Porta para o modulo 1
-#define PIN_MODULO2 A1       //Porta para o modulo 2
 #define PIN_SUSP_DIREITA A2  //Porta para o sensor da suspensao direita
 #define PIN_SUSP_ESQUERDA A3 //Porta para o sensor da suspensao esquerda
 #define LED_CPU 8            //Porta para o LED do módulo
@@ -84,7 +82,7 @@ void setup()
   pinMode(LED_BUILTIN, OUTPUT);
   SPI.begin();
   Wire.begin(); //Inicia I2C
-  Serial.begin(115200);
+  Serial.begin(9600);
 
   //Configura a CAN
   digitalWrite(LED_BUILTIN, HIGH);
@@ -134,7 +132,7 @@ void setup()
   Suspensao.id.endDestino = EK304CAN_ID_ADDRESS_GTW;
   Suspensao.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;
   Suspensao.msg.variant = 0x02;
-  Suspensao.msg.length = 0x02;
+  Suspensao.msg.length = 2;
 
   /*
   Suspensao.msg.data[0] = posicaoSuspDireita;
@@ -146,12 +144,10 @@ void setup()
   Wire.write(0);
   Wire.endTransmission(true);
 
-  /*
   Wire.beginTransmission(MPU2); //Inicia transmissao para o endereco do Modulo 2
   Wire.write(0x6B);
   Wire.write(0);
   Wire.endTransmission(true);
-  */
 }
 
 void loop()

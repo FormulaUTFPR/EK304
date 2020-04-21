@@ -73,6 +73,8 @@
 #define STRING_DISPLAY_CARNAME "EK-304"
 #define STRING_DISPLAY_DATETIME_MAX 33
 
+#define STRING_FILE_NAME "ola2.csv"
+
 // erros
 #define ERROR_MSGSIZE 25
 
@@ -1237,332 +1239,358 @@ void taskCAN()
         case 0x01:
           //Acelerômetro 2
           break;
-        case 0x02
-          sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor = frame.msg.data[0]/(2.8+1/30);
-          sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = frame.msg.data[1]/(2.8+1/30);
+        case 0x02:
+          sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor = frame.msg.data[0] / (2.8 + 1 / 30);
+          sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = frame.msg.data[1] / (2.8 + 1 / 30);
         }
         break;
       case EK304CAN_ID_ADDRESS_ECU02:
-          sensors[SENSOR_MAP_ID].valor = frame.msg.data[0];
-          sensors[SENSOR_LAMBDA_ID].valor = frame.msg.data[1];
-          sensors[SENSOR_TPS_ID].valor = frame.msg.data[2];
-          sensors[SENSOR_WATER_TEMPERATURE_ID].valor = frame.msg.data[3];
-          sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].valor = frame.msg.data[4];
-          sensors[SENSOR_ROTATION_ID].valor = frame.msg.data[5] * CONST_RPM;
-          break;
-        case EK304CAN_ID_ADDRESS_ECU03:
-          sensors[SENSOR_GEAR_ID].valor = frame.msg.data[4];
-          break;
-        case EK304CAN_ID_ADDRESS_ECU04:
-          switch (frame.msg.variant)
-          {
-          case 0x00:
-            sensors[SENSOR_SPEED_ID].valor = frame.msg.data[0];
-            sensors[SENSOR_MOTOR_TEMPERATURE_ID].valor = frame.msg.data[1];
-            sensors[SENSOR_OIL_PRESSURE_ID].valor = frame.msg.data[2];
-            sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor = frame.msg.data[3] / (2.8 + 1 / 30);
-            sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = frame.msg.data[4] / (2.8 + 1 / 30);
+        sensors[SENSOR_MAP_ID].valor = frame.msg.data[0];
+        sensors[SENSOR_LAMBDA_ID].valor = frame.msg.data[1];
+        sensors[SENSOR_TPS_ID].valor = frame.msg.data[2];
+        sensors[SENSOR_WATER_TEMPERATURE_ID].valor = frame.msg.data[3];
+        sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].valor = frame.msg.data[4];
+        sensors[SENSOR_ROTATION_ID].valor = frame.msg.data[5] * CONST_RPM;
+        break;
+      case EK304CAN_ID_ADDRESS_ECU03:
+        sensors[SENSOR_GEAR_ID].valor = frame.msg.data[4];
+        break;
+      case EK304CAN_ID_ADDRESS_ECU04:
+        switch (frame.msg.variant)
+        {
+        case 0x00:
+          sensors[SENSOR_SPEED_ID].valor = frame.msg.data[0];
+          sensors[SENSOR_MOTOR_TEMPERATURE_ID].valor = frame.msg.data[1];
+          sensors[SENSOR_OIL_PRESSURE_ID].valor = frame.msg.data[2];
+          sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor = frame.msg.data[3] / (2.8 + 1 / 30);
+          sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = frame.msg.data[4] / (2.8 + 1 / 30);
 
-            Serial.println(sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor);
-            break;
-          case 0x01:
-            //Acelerômetro, fazer objeto?
-            break;
-          }
+          Serial.println(sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor);
           break;
-        case EK304CAN_ID_ADDRESS_ECU15:
+        case 0x01:
+          //Acelerômetro, fazer objeto?
           break;
         }
+        break;
+      case EK304CAN_ID_ADDRESS_ECU15:
+        break;
       }
 
-      Serial.print(frame.id.endOrigem, HEX);
-      Serial.print(frame.id.endDestino, HEX);
-      Serial.print(frame.id.tipo, HEX);
+      //Aqui começa a parte da gravação no cartão SD
 
-      Serial.print(" ");
-      Serial.print(frame.msg.length);
-      Serial.print(" ");
-      Serial.print(frame.msg.variant, HEX);
-      Serial.print(" ");
+      Serial.println(micros());
 
+      sdCard.Write(STRING_FILE_NAME, "Primeira coluna"); //Grava o tempo decorrido
+      sdCard.Write(STRING_FILE_NAME, ";");
+      sdCard.Write(STRING_FILE_NAME, String(micros())); //Grava o tempo decorrido
+      sdCard.Write(STRING_FILE_NAME, ";");
+
+      sdCard.Write(STRING_FILE_NAME, String(frame.id.endOrigem)); //Grava os dados da CAN
+      sdCard.Write(STRING_FILE_NAME, ";");
+      sdCard.Write(STRING_FILE_NAME, String(frame.id.endDestino));
+      sdCard.Write(STRING_FILE_NAME, ";");
+      sdCard.Write(STRING_FILE_NAME, String(frame.id.tipo));
+      sdCard.Write(STRING_FILE_NAME, ";");
+      sdCard.Write(STRING_FILE_NAME, String(frame.msg.length));
+      sdCard.Write(STRING_FILE_NAME, ";");
+      sdCard.Write(STRING_FILE_NAME, String(frame.msg.variant));
+      sdCard.Write(STRING_FILE_NAME, ";");
       for (int i = 0; i < frame.msg.length; i++)
       {
-        Serial.print(frame.msg.data[i], HEX);
-        Serial.print(" ");
+        sdCard.Write(STRING_FILE_NAME, String(frame.msg.data[i]));
+        sdCard.Write(STRING_FILE_NAME, ";");
       }
-
-      Serial.println();
+      sdCard.Write(STRING_FILE_NAME, ";\r\n"); //Quebra a linha
     }
 
-    if (tmrCanTestOverflow)
-    {
-      if (EK304CAN_ECU01_ENABLED)
-        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU01);
-      if (EK304CAN_ECU02_ENABLED)
-        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU02);
-      if (EK304CAN_ECU03_ENABLED)
-        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU03);
-      if (EK304CAN_ECU04_ENABLED)
-        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU04);
-      if (EK304CAN_ECU15_ENABLED)
-        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU15);
+    Serial.print(frame.id.endOrigem, HEX);
+    Serial.print(frame.id.endDestino, HEX);
+    Serial.print(frame.id.tipo, HEX);
 
-      tmrCanTestOverflow = false;
-    }
-  }
+    Serial.print(" ");
+    Serial.print(frame.msg.length);
+    Serial.print(" ");
+    Serial.print(frame.msg.variant, HEX);
+    Serial.print(" ");
 
-  void taskSerial()
-  {
-    while (Serial3.available())
+    for (int i = 0; i < frame.msg.length; i++)
     {
-      char c = Serial3.read();
-      Serial.print(c);
+      Serial.print(frame.msg.data[i], HEX);
+      Serial.print(" ");
     }
 
-    while (Serial.available())
+    Serial.println();
+  }
+
+  if (tmrCanTestOverflow)
+  {
+    if (EK304CAN_ECU01_ENABLED)
+      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU01);
+    if (EK304CAN_ECU02_ENABLED)
+      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU02);
+    if (EK304CAN_ECU03_ENABLED)
+      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU03);
+    if (EK304CAN_ECU04_ENABLED)
+      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU04);
+    if (EK304CAN_ECU15_ENABLED)
+      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU15);
+
+    tmrCanTestOverflow = false;
+  }
+}
+
+void taskSerial()
+{
+  while (Serial3.available())
+  {
+    char c = Serial3.read();
+    Serial.print(c);
+  }
+
+  while (Serial.available())
+  {
+    char c = Serial.read();
+    Serial3.print(c);
+  }
+}
+
+/**************************************************************************************************************************************/
+/* FUNÇÕES DE CONFIGURAÇÕES                                                                                                           */
+/**************************************************************************************************************************************/
+// configura a serial
+void setupSerial()
+{
+  Serial.begin(9600);  // configura baud rate da serial0 para 115200bps
+  Serial3.begin(9600); // configura baud rate da serial3 para 115200bps
+}
+
+// configura o modo do display a ser utilizado
+void setupDisplay()
+{
+  // configura de acordo com o modelo de display
+  if (u8g.getMode() == U8G_MODE_R3G3B2)
+    u8g.setColorIndex(255);
+  else if (u8g.getMode() == U8G_MODE_GRAY2BIT)
+    u8g.setColorIndex(1);
+  else if (u8g.getMode() == U8G_MODE_BW)
+    u8g.setColorIndex(1);
+
+  // tela inicial: logo equipe
+  u8gDraw(1);
+}
+
+// configura o modulo transciever CAN
+void setupCAN()
+{
+  SPI.begin();
+  CAN_Init(&mcp2515, CAN_1000KBPS);
+  tmrCanTestEnabled = true;
+}
+
+// configura módulo encoder
+void setupEncoder()
+{
+  // pinos confugrados com pullup interno
+  pinMode(ENC_CL, INPUT_PULLUP);
+  pinMode(ENC_DT, INPUT_PULLUP);
+  pinMode(ENC_SW, INPUT_PULLUP);
+
+  // configura interrupções para os pinos de clock e data
+  attachInterrupt(digitalPinToInterrupt(ENC_CL), isrEncoderSpin, FALLING);
+  attachInterrupt(digitalPinToInterrupt(ENC_SW), isrEncoderClick, FALLING);
+
+  intEncoderClockEnabled = true;
+}
+
+void setupTimer()
+{
+  Timer1.initialize(TMR_BASE);
+  Timer1.attachInterrupt(taskScheduler);
+}
+
+void setupInit()
+{
+  pinMode(LED_BUILTIN, OUTPUT);
+  stateMachine = STATE_STARTUP_LOGO;
+
+  tmrStartupLogoEnabled = true;
+  telaAtual = 1;
+  flagUpdateDisplay = true;
+}
+
+void setupSDModule()
+{
+  if (!sdCard.Init(SPI_CS_SD))
+    Serial.println("Erro ao iniciar");
+  if (!sdCard.Write("xx.txt", "asoksaosak;"))
+    Serial.println("Erro ao escrever");
+  if (!sdCard.Read("xx.txt"))
+    Serial.println("Erro ao ler");
+  if (!sdCard.Remove("xx.txt"))
+    Serial.println("Erro ao apagar");
+}
+
+/**************************************************************************************************************************************/
+/* FUNÇÕES DE DESENHO DAS TELAS                                                                                                       */
+/**************************************************************************************************************************************/
+void u8gPrepare()
+{
+  u8g.setFont(u8g_font_6x10);
+  u8g.setFontRefHeightExtendedText();
+  u8g.setDefaultForegroundColor();
+  u8g.setFontPosTop();
+}
+
+void u8gDraw(int screen)
+{
+  u8gPrepare();
+  u8g.firstPage();
+  do
+  {
+    switch (screen)
     {
-      char c = Serial.read();
-      Serial3.print(c);
+    case 1:
+      scrLogo();
+      break;
+    case 2:
+      scrWelcome();
+      break;
+    case 3:
+      scrOverview();
+      break;
     }
-  }
+  } while (u8g.nextPage());
+}
 
-  /**************************************************************************************************************************************/
-  /* FUNÇÕES DE CONFIGURAÇÕES                                                                                                           */
-  /**************************************************************************************************************************************/
-  // configura a serial
-  void setupSerial()
+void scrLogo()
+{
+  u8g.drawXBMP(0, 0, 128, 64, logo_bits);
+  u8g.setFont(u8g_font_u8glib_4);
+  u8g.drawStr(0, 63, FIRMWARE_VERSION);
+}
+
+void scrWelcome()
+{
+  u8g.setFont(u8g_font_unifont);
+  u8g.drawStr(10, 35, STRING_DISPLAY_TEAMNAME);
+  u8g.drawStr(10, 36, STRING_DISPLAY_TEAMNAME);
+  u8g.setFont(u8g_font_6x10);
+  u8g.drawStr(45, 45, STRING_DISPLAY_CARNAME);
+  u8g.setFont(u8g_font_u8glib_4);
+  u8g.drawStr(0, 63, FIRMWARE_VERSION);
+}
+
+void scrOverview()
+{
+  String sTemp = "";
+  char cTemp[STRING_DISPLAY_DATETIME_MAX + 1];
+
+  // mostra data e hora atuais
+  u8g.setFont(u8g_font_u8glib_4);
+  horaAtual.ToStringCenter(STRING_DISPLAY_DATETIME_MAX).toCharArray(cTemp, STRING_DISPLAY_DATETIME_MAX + 1);
+  u8g.drawStr(0, 5, cTemp);
+
+  // mostra as informações dos sensores selecionadas
+  sTemp = "";
+  sTemp.concat(senOverview[0].nome);
+  sTemp.concat(": ");
+  sTemp.concat(senOverview[0].valor);
+  sTemp.concat(" ");
+  sTemp.concat(senOverview[0].unidade);
+  sTemp.toCharArray(cTemp, 20);
+  u8g.drawStr(0, 55, cTemp);
+
+  sTemp = "";
+  sTemp.concat(senOverview[1].nome);
+  sTemp.concat(": ");
+  sTemp.concat(senOverview[1].valor);
+  sTemp.concat(" ");
+  sTemp.concat(senOverview[1].unidade);
+  sTemp.toCharArray(cTemp, 20);
+  u8g.drawStr(0, 63, cTemp);
+
+  // mostra a velocidade
+  u8g.setFont(u8g_font_fub20);
+
+  sTemp = "";
+  sTemp.concat((int)(sensors[SENSOR_SPEED_ID].valor));
+  sTemp.toCharArray(cTemp, 4);
+  if (sensors[SENSOR_SPEED_ID].valor >= 100)
+    u8g.drawStr(30, 33, cTemp);
+  else if (sensors[SENSOR_SPEED_ID].valor >= 10)
+    u8g.drawStr(37, 33, cTemp);
+  else
+    u8g.drawStr(45, 33, cTemp);
+
+  u8g.setFont(u8g_font_5x7);
+
+  sTemp = "";
+  sTemp.concat(sensors[SENSOR_SPEED_ID].unidade);
+  sTemp.toCharArray(cTemp, 20);
+  u8g.drawStr(80, 33, cTemp);
+
+  // mostra a marcha
+  u8g.setFont(u8g_font_5x7);
+
+  if (sensors[SENSOR_GEAR_ID].valor >= SENSOR_GEAR_MIN && sensors[SENSOR_GEAR_ID].valor <= SENSOR_GEAR_MAX)
   {
-    Serial.begin(9600);  // configura baud rate da serial0 para 115200bps
-    Serial3.begin(9600); // configura baud rate da serial3 para 115200bps
-  }
-
-  // configura o modo do display a ser utilizado
-  void setupDisplay()
-  {
-    // configura de acordo com o modelo de display
-    if (u8g.getMode() == U8G_MODE_R3G3B2)
-      u8g.setColorIndex(255);
-    else if (u8g.getMode() == U8G_MODE_GRAY2BIT)
-      u8g.setColorIndex(1);
-    else if (u8g.getMode() == U8G_MODE_BW)
-      u8g.setColorIndex(1);
-
-    // tela inicial: logo equipe
-    u8gDraw(1);
-  }
-
-  // configura o modulo transciever CAN
-  void setupCAN()
-  {
-    SPI.begin();
-    CAN_Init(&mcp2515, CAN_1000KBPS);
-    tmrCanTestEnabled = true;
-  }
-
-  // configura módulo encoder
-  void setupEncoder()
-  {
-    // pinos confugrados com pullup interno
-    pinMode(ENC_CL, INPUT_PULLUP);
-    pinMode(ENC_DT, INPUT_PULLUP);
-    pinMode(ENC_SW, INPUT_PULLUP);
-
-    // configura interrupções para os pinos de clock e data
-    attachInterrupt(digitalPinToInterrupt(ENC_CL), isrEncoderSpin, FALLING);
-    attachInterrupt(digitalPinToInterrupt(ENC_SW), isrEncoderClick, FALLING);
-
-    intEncoderClockEnabled = true;
-  }
-
-  void setupTimer()
-  {
-    Timer1.initialize(TMR_BASE);
-    Timer1.attachInterrupt(taskScheduler);
-  }
-
-  void setupInit()
-  {
-    pinMode(LED_BUILTIN, OUTPUT);
-    stateMachine = STATE_STARTUP_LOGO;
-
-    tmrStartupLogoEnabled = true;
-    telaAtual = 1;
-    flagUpdateDisplay = true;
-  }
-
-  void setupSDModule()
-  {
-    if (!sdCard.Init(SPI_CS_SD))
-      Serial.println("Erro ao iniciar");
-    if (!sdCard.Write("xx.txt", "asoksaosak;"))
-      Serial.println("Erro ao escrever");
-    if (!sdCard.Read("xx.txt"))
-      Serial.println("Erro ao ler");
-    if (!sdCard.Remove("xx.txt"))
-      Serial.println("Erro ao apagar");
-  }
-
-  /**************************************************************************************************************************************/
-  /* FUNÇÕES DE DESENHO DAS TELAS                                                                                                       */
-  /**************************************************************************************************************************************/
-  void u8gPrepare()
-  {
-    u8g.setFont(u8g_font_6x10);
-    u8g.setFontRefHeightExtendedText();
-    u8g.setDefaultForegroundColor();
-    u8g.setFontPosTop();
-  }
-
-  void u8gDraw(int screen)
-  {
-    u8gPrepare();
-    u8g.firstPage();
-    do
-    {
-      switch (screen)
-      {
-      case 1:
-        scrLogo();
-        break;
-      case 2:
-        scrWelcome();
-        break;
-      case 3:
-        scrOverview();
-        break;
-      }
-    } while (u8g.nextPage());
-  }
-
-  void scrLogo()
-  {
-    u8g.drawXBMP(0, 0, 128, 64, logo_bits);
-    u8g.setFont(u8g_font_u8glib_4);
-    u8g.drawStr(0, 63, FIRMWARE_VERSION);
-  }
-
-  void scrWelcome()
-  {
-    u8g.setFont(u8g_font_unifont);
-    u8g.drawStr(10, 35, STRING_DISPLAY_TEAMNAME);
-    u8g.drawStr(10, 36, STRING_DISPLAY_TEAMNAME);
-    u8g.setFont(u8g_font_6x10);
-    u8g.drawStr(45, 45, STRING_DISPLAY_CARNAME);
-    u8g.setFont(u8g_font_u8glib_4);
-    u8g.drawStr(0, 63, FIRMWARE_VERSION);
-  }
-
-  void scrOverview()
-  {
-    String sTemp = "";
-    char cTemp[STRING_DISPLAY_DATETIME_MAX + 1];
-
-    // mostra data e hora atuais
-    u8g.setFont(u8g_font_u8glib_4);
-    horaAtual.ToStringCenter(STRING_DISPLAY_DATETIME_MAX).toCharArray(cTemp, STRING_DISPLAY_DATETIME_MAX + 1);
-    u8g.drawStr(0, 5, cTemp);
-
-    // mostra as informações dos sensores selecionadas
-    sTemp = "";
-    sTemp.concat(senOverview[0].nome);
-    sTemp.concat(": ");
-    sTemp.concat(senOverview[0].valor);
-    sTemp.concat(" ");
-    sTemp.concat(senOverview[0].unidade);
-    sTemp.toCharArray(cTemp, 20);
-    u8g.drawStr(0, 55, cTemp);
-
-    sTemp = "";
-    sTemp.concat(senOverview[1].nome);
-    sTemp.concat(": ");
-    sTemp.concat(senOverview[1].valor);
-    sTemp.concat(" ");
-    sTemp.concat(senOverview[1].unidade);
-    sTemp.toCharArray(cTemp, 20);
-    u8g.drawStr(0, 63, cTemp);
-
-    // mostra a velocidade
-    u8g.setFont(u8g_font_fub20);
-
-    sTemp = "";
-    sTemp.concat((int)(sensors[SENSOR_SPEED_ID].valor));
-    sTemp.toCharArray(cTemp, 4);
-    if (sensors[SENSOR_SPEED_ID].valor >= 100)
-      u8g.drawStr(30, 33, cTemp);
-    else if (sensors[SENSOR_SPEED_ID].valor >= 10)
-      u8g.drawStr(37, 33, cTemp);
+    sTemp = sensors[SENSOR_GEAR_ID].nome;
+    sTemp += ": ";
+    if ((int)(sensors[SENSOR_GEAR_ID].valor) == 0)
+      sTemp += "N";
+    else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 1)
+      sTemp += "1st";
+    else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 2)
+      sTemp += "2nd";
+    else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 3)
+      sTemp += "3rd";
     else
-      u8g.drawStr(45, 33, cTemp);
+    {
+      sTemp += (int)(sensors[SENSOR_GEAR_ID].valor);
+      sTemp += "th";
+    }
 
-    u8g.setFont(u8g_font_5x7);
-
-    sTemp = "";
-    sTemp.concat(sensors[SENSOR_SPEED_ID].unidade);
     sTemp.toCharArray(cTemp, 20);
-    u8g.drawStr(80, 33, cTemp);
+    u8g.drawStr(80, 23, cTemp);
 
-    // mostra a marcha
-    u8g.setFont(u8g_font_5x7);
-
-    if (sensors[SENSOR_GEAR_ID].valor >= SENSOR_GEAR_MIN && sensors[SENSOR_GEAR_ID].valor <= SENSOR_GEAR_MAX)
+    // mostra erros na tela
+    if (flagErrorsFound)
     {
-      sTemp = sensors[SENSOR_GEAR_ID].nome;
-      sTemp += ": ";
-      if ((int)(sensors[SENSOR_GEAR_ID].valor) == 0)
-        sTemp += "N";
-      else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 1)
-        sTemp += "1st";
-      else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 2)
-        sTemp += "2nd";
-      else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 3)
-        sTemp += "3rd";
-      else
-      {
-        sTemp += (int)(sensors[SENSOR_GEAR_ID].valor);
-        sTemp += "th";
-      }
 
-      sTemp.toCharArray(cTemp, 20);
-      u8g.drawStr(80, 23, cTemp);
-
-      // mostra erros na tela
-      if (flagErrorsFound)
-      {
-
-        u8g.drawBox(0, 37, 128, 9);
-        u8g.setColorIndex(0);
-        u8g.drawStr(2, 44, cErrorMsg);
-        u8g.setColorIndex(1);
-      }
+      u8g.drawBox(0, 37, 128, 9);
+      u8g.setColorIndex(0);
+      u8g.drawStr(2, 44, cErrorMsg);
+      u8g.setColorIndex(1);
     }
   }
+}
 
-  /**************************************************************************************************************************************/
-  /* FUNÇÕES DE TRATAMENTO DE INTERRUPÇÃO                                                                                               */
-  /**************************************************************************************************************************************/
-  void isrEncoderSpin()
+/**************************************************************************************************************************************/
+/* FUNÇÕES DE TRATAMENTO DE INTERRUPÇÃO                                                                                               */
+/**************************************************************************************************************************************/
+void isrEncoderSpin()
+{
+  if (intEncoderClockEnabled)
   {
-    if (intEncoderClockEnabled)
-    {
-      intEncoderClockEnabled = false;
-      if (digitalRead(ENC_CL))
-        flagEncoderClockwiseSpin = !digitalRead(ENC_DT);
-      else
-        flagEncoderClockwiseSpin = digitalRead(ENC_DT);
+    intEncoderClockEnabled = false;
+    if (digitalRead(ENC_CL))
+      flagEncoderClockwiseSpin = !digitalRead(ENC_DT);
+    else
+      flagEncoderClockwiseSpin = digitalRead(ENC_DT);
 
-      flagEncoderSpinEvent = true;
-    }
+    flagEncoderSpinEvent = true;
   }
+}
 
-  void isrEncoderClick()
+void isrEncoderClick()
+{
+  if (intEncoderButtonEnabled)
   {
-    if (intEncoderButtonEnabled)
-    {
-      intEncoderButtonEnabled = false;
-      flagEncoderClickEvent = true;
-    }
+    intEncoderButtonEnabled = false;
+    flagEncoderClickEvent = true;
   }
+}
 
-  /**************************************************************************************************************************************/
-  /* FUNÇÕES GERAIS                                                                                                                     */
-  /**************************************************************************************************************************************/
+/**************************************************************************************************************************************/
+/* FUNÇÕES GERAIS                                                                                                                     */
+/**************************************************************************************************************************************/
