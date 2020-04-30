@@ -1280,9 +1280,9 @@ void taskCAN()
 
       Serial.println(micros());
 
-      sdCard.Write(STRING_FILE_NAME, "Primeira coluna"); //Grava o tempo decorrido
+      sdCard.Write(STRING_FILE_NAME, "");
       sdCard.Write(STRING_FILE_NAME, ";");
-      sdCard.Write(STRING_FILE_NAME, String(micros())); //Grava o tempo decorrido
+      sdCard.Write(STRING_FILE_NAME, String(millis())); //Grava o tempo decorrido
       sdCard.Write(STRING_FILE_NAME, ";");
 
       sdCard.Write(STRING_FILE_NAME, String(frame.id.endOrigem)); //Grava os dados da CAN
