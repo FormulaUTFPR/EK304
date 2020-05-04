@@ -33,74 +33,74 @@ NS_ :
 
 BS_:
 
-BU_: RearData_Module04 FrontData_Module01 MEGA_CLONE_Module02 EngineDataExtra_Module03
+BU_: Gateway RearData_Module04 FrontData_Module01 MEGA_CLONE_Module02 EngineDataExtra_Module03
 
 
 BO_ 19 MAP: 2 MEGA_CLONE_Module02
- SG_ MAP : 0|10@1+ (250,0) [0|255750] "Pa" Vector__XXX
+ SG_ MAP : 0|10@1+ (250,0) [0|255750] "Pa"  Gateway
 
 BO_ 18 SuspFront: 4 FrontData_Module01
- SG_ SuspFrontRight : 16|10@1+ (1,0) [0|0] "" Vector__XXX
- SG_ SuspFrontLeft : 0|10@1+ (0.088,0) [0|90.024] "deg" Vector__XXX
+ SG_ SuspFrontRight : 16|10@1+ (1,0) [0|0] ""  Gateway
+ SG_ SuspFrontLeft : 0|10@1+ (0.088,0) [0|90.024] "deg"  Gateway
 
 BO_ 17 TPS: 1 MEGA_CLONE_Module02
- SG_ TPS : 0|8@1+ (1,0) [0|255] "%" Vector__XXX
+ SG_ TPS : 0|8@1+ (1,0) [0|255] "%"  Gateway
 
 BO_ 16 WaterTemp: 1 MEGA_CLONE_Module02
- SG_ WaterTemp : 0|8@1+ (1,0) [0|255] "degC" Vector__XXX
+ SG_ WaterTemp : 0|8@1+ (1,0) [0|255] "degC"  Gateway
 
 BO_ 15 AirTemp: 1 MEGA_CLONE_Module02
- SG_ AirTemp : 0|8@1+ (1,0) [0|255] "degC" Vector__XXX
+ SG_ AirTemp : 0|8@1+ (1,0) [0|255] "degC"  Gateway
 
 BO_ 14 Speed: 1 RearData_Module04
- SG_ Speed : 0|8@1+ (1,0) [0|255] "km/h" Vector__XXX
+ SG_ Speed : 0|8@1+ (1,0) [0|255] "km/h"  Gateway
 
 BO_ 13 OilTemp: 1 RearData_Module04
- SG_ OilTemp : 0|8@1+ (1,0) [0|255] "degC" Vector__XXX
+ SG_ OilTemp : 0|8@1+ (1,0) [0|255] "degC"  Gateway
 
 BO_ 12 OilPressure: 1 RearData_Module04
- SG_ OilPressure : 0|8@1+ (0.1,0) [0|25.5] "Bar" Vector__XXX
+ SG_ OilPressure : 0|8@1+ (0.1,0) [0|25.5] "Bar"  Gateway
 
 BO_ 11 SuspRear: 4 RearData_Module04
- SG_ SuspRearRight : 16|10@1+ (1,0) [0|0] "" Vector__XXX
- SG_ SuspRearLeft : 0|10@1+ (1,0) [0|0] "" Vector__XXX
+ SG_ SuspRearRight : 16|10@1+ (1,0) [0|0] ""  Gateway
+ SG_ SuspRearLeft : 0|10@1+ (1,0) [0|0] ""  Gateway
 
 BO_ 10 Pressure: 8 EngineDataExtra_Module03
 
 BO_ 9 Temperature: 8 EngineDataExtra_Module03
 
 BO_ 8 GearPosition: 1 EngineDataExtra_Module03
- SG_ GearPosition : 0|8@1+ (1,0) [0|6] "Gear" Vector__XXX
+ SG_ GearPosition : 0|8@1+ (1,0) [0|6] "Gear"  Gateway
 
 BO_ 7 Lambda: 1 MEGA_CLONE_Module02
- SG_ Lambda : 0|8@1+ (0.01,0) [0|2.55] "" Vector__XXX
+ SG_ Lambda : 0|8@1+ (0.01,0) [0|2.55] ""  Gateway
 
 BO_ 0 RPM: 1 MEGA_CLONE_Module02
- SG_ RPM : 0|8@1+ (51,0) [0|13005] "RPM" Vector__XXX
+ SG_ RPM : 0|8@1+ (51,0) [0|13005] "RPM"  Gateway
 
 BO_ 5 Acc03: 6 RearData_Module04
- SG_ Gyro03Z : 40|8@1- (2,0) [-256|254] "deg/s" Vector__XXX
- SG_ Gyro03Y : 32|8@1- (2,0) [-256|254] "deg/s" Vector__XXX
- SG_ Gyro03X : 24|8@1- (2,0) [-256|254] "deg/s" Vector__XXX
- SG_ Acc03Z : 16|8@1- (0.008,0) [-1.024|1.016] "G" Vector__XXX
- SG_ Acc03Y : 8|8@1- (0.008,0) [-1.024|1.016] "G" Vector__XXX
- SG_ Acc03X : 0|8@1- (0.008,0) [-1.024|1.016] "G" Vector__XXX
+ SG_ Gyro03Z : 40|8@1- (2,0) [-256|254] "deg/s"  Gateway
+ SG_ Gyro03Y : 32|8@1- (2,0) [-256|254] "deg/s"  Gateway
+ SG_ Gyro03X : 24|8@1- (2,0) [-256|254] "deg/s"  Gateway
+ SG_ Acc03Z : 16|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
+ SG_ Acc03Y : 8|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
+ SG_ Acc03X : 0|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
 
 BO_ 3 Acc02: 6 FrontData_Module01
- SG_ Gyro02Z : 40|8@1- (2,0) [-256|254] "deg/s" Vector__XXX
- SG_ Gyro02Y : 32|8@1- (2,0) [-256|254] "deg/s" Vector__XXX
- SG_ Gyro02X : 24|8@1- (2,0) [-256|254] "deg/s" Vector__XXX
- SG_ Acc02Z : 16|8@1- (0.008,0) [-1.024|1.016] "G" Vector__XXX
- SG_ Acc02Y : 8|8@1- (0.008,0) [-1.024|1.016] "G" Vector__XXX
- SG_ Acc02X : 0|8@1- (0.008,0) [-1.024|1.016] "G" Vector__XXX
+ SG_ Gyro02Z : 40|8@1- (2,0) [-256|254] "deg/s"  Gateway
+ SG_ Gyro02Y : 32|8@1- (2,0) [-256|254] "deg/s"  Gateway
+ SG_ Gyro02X : 24|8@1- (2,0) [-256|254] "deg/s"  Gateway
+ SG_ Acc02Z : 16|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
+ SG_ Acc02Y : 8|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
+ SG_ Acc02X : 0|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
 
 BO_ 1 Acc01: 6 FrontData_Module01
- SG_ Gyro01Z : 40|8@1- (2,0) [-256|254] "deg/s" Vector__XXX
- SG_ Gyro01Y : 32|8@1- (2,0) [-256|254] "deg/s" Vector__XXX
- SG_ Gyro01X : 24|8@1- (2,0) [-256|254] "deg/s" Vector__XXX
- SG_ Acc01Z : 16|8@1- (0.008,0) [-1.024|1.016] "G" Vector__XXX
- SG_ Acc01Y : 8|8@1- (0.008,0) [-1.024|1.016] "G" Vector__XXX
- SG_ Acc01X : 0|8@1- (0.008,0) [-1.024|1.016] "G" Vector__XXX
+ SG_ Gyro01Z : 40|8@1- (2,0) [-256|254] "deg/s"  Gateway
+ SG_ Gyro01Y : 32|8@1- (2,0) [-256|254] "deg/s"  Gateway
+ SG_ Gyro01X : 24|8@1- (2,0) [-256|254] "deg/s"  Gateway
+ SG_ Acc01Z : 16|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
+ SG_ Acc01Y : 8|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
+ SG_ Acc01X : 0|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
 
 
 
