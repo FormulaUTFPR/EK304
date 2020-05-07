@@ -51,7 +51,7 @@
 #define SENSOR_TPS_ID 0x0E
 #define SENSOR_LAMBDA_ID 0x0F
 #define SENSOR_OIL_PRESSURE_ID 0x10
-#define SENSOR_OIL_TEMPERATURER_ID 0x11
+#define SENSOR_OIL_TEMPERATURE_ID 0x11
 #define SENSOR_REAR_LEFT_SUSPENSION_ID 0x12
 #define SENSOR_REAR_RIGHT_SUSPENSION_ID 0x13
 #define SENSOR_FRONT_LEFT_SUSPENSION_ID 0x14
@@ -129,6 +129,9 @@
 #include <LinkedList.h>
 #include <SD.h>
 
+#include <EK304ERRORS.h>
+#include <EK304SETTINGS.h>
+
 #include <EK304SD.h>
 #include <EK304CAN.h> // importa biblioteca de funções para a CAN (alto nivel)
 
@@ -176,6 +179,8 @@ void SDInit(int SC_PIN);
 void isrEncoderSpin();  // trata interrupção do giro do encoder
 void isrEncoderClick(); // trata interrupção do clique do encoder
 
+void setAckTime(int origin);
+
 /**************************************************************************************************************************************/
 /* DEFINIÇÃO DE TIPOS NÃO PRIMITIVOS                                                                                                   */
 /**************************************************************************************************************************************/
@@ -185,9 +190,10 @@ class Sensor
 public:
   String nome;
   String unidade;
-  double valor;
+  long valor;
   unsigned long canID;
   unsigned long ultimoRecebimento;
+  int origin;
 
   Sensor()
   {
@@ -195,14 +201,16 @@ public:
     unidade = "";
     valor = 0.0;
     canID = 0;
+    origin = 0;
   }
 
-  Sensor(String n, String u, unsigned long id)
+  Sensor(String n, String u, unsigned long id, int o)
   {
     nome = n;
     unidade = u;
     valor = 0.0;
     canID = id;
+    origin = o;
   }
 
   String ToString()
@@ -458,7 +466,9 @@ bool flagEncoderClockwiseSpin = false; // sinaliza o sentido de giro o encoder (
 bool flagFreezeDisplay = false; // sinaliza quando o display deve estar congelado
 bool flagUpdateDisplay = false; // sinaliza quando o display quando o display deve ser atualizado
 
-bool flagErrorsFound = false; // sinaliza quando houve(m) falha(s) no sistema'
+bool flagErrorsFound = false;     // sinaliza quando houve(m) falha(s) no sistema'
+bool flagErrorSDCardInit = false; // sinaliza quando há erro na inicialização do cartão SD
+bool flagErrorSDCardFull = false; // sinaliza quando o cartão SD está ficando cheio ou está cheio
 
 bool intEncoderClockEnabled = true;  // habilita a interrupção no clock do encoder
 bool intEncoderButtonEnabled = true; // habilita a interrupção no botão do encoder
@@ -602,27 +612,27 @@ void setupBlink()
 
 void setupSensors()
 {
-  sensors[SENSOR_SPEED_ID] = Sensor("Speed", "Km/h", SENSOR_SPEED_ID);
-  sensors[SENSOR_ROTATION_ID] = Sensor("Mot. Rotation", "rpm", SENSOR_ROTATION_ID);
-  sensors[SENSOR_MOTOR_TEMPERATURE_ID] = Sensor("Mot. Temperature", "oC", SENSOR_MOTOR_TEMPERATURE_ID);
-  sensors[SENSOR_GEAR_ID] = Sensor("Gear", "", SENSOR_GEAR_ID);
-  sensors[SENSOR_GPS_LATITUDE_ID] = Sensor("Latitude", "o", SENSOR_GPS_LATITUDE_ID);
-  sensors[SENSOR_GPS_LONGITUDE_ID] = Sensor("Longitude", "o", SENSOR_GPS_LONGITUDE_ID);
-  sensors[SENSOR_GPS_ALTITUDE_ID] = Sensor("Altitude", "o", SENSOR_GPS_ALTITUDE_ID);
-  sensors[SENSOR_GPS_FIX_ID] = Sensor("GPS Fix", "o", SENSOR_GPS_FIX_ID);
-  sensors[SENSOR_GPS_HDOP_ID] = Sensor("GPS Fix", "", SENSOR_GPS_HDOP_ID);
-  sensors[SENSOR_VOLTAGE_BATTERY_ID] = Sensor("Main Supply", "V", SENSOR_VOLTAGE_BATTERY_ID);
-  sensors[SENSOR_MAP_ID] = Sensor("MAP", "kPa", SENSOR_MAP_ID);
-  sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID] = Sensor("Air Temp.", "°C", SENSOR_AIR_INTAKE_TEMPERATURE_ID);
-  sensors[SENSOR_WATER_TEMPERATURE_ID] = Sensor("Water Temp.", "°C", SENSOR_WATER_TEMPERATURE_ID);
-  sensors[SENSOR_TPS_ID] = Sensor("TPS", "%", SENSOR_TPS_ID);
-  sensors[SENSOR_LAMBDA_ID] = Sensor("Lambda", "%", SENSOR_LAMBDA_ID);
-  sensors[SENSOR_OIL_PRESSURE_ID] = Sensor("Oil Pressure", "kPa", SENSOR_OIL_PRESSURE_ID);
-  sensors[SENSOR_OIL_TEMPERATURER_ID] = Sensor("Oil Temp.", "°C", SENSOR_OIL_TEMPERATURER_ID);
-  sensors[SENSOR_REAR_LEFT_SUSPENSION_ID] = Sensor("RL Susp.", "°", SENSOR_REAR_LEFT_SUSPENSION_ID);
-  sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID] = Sensor("RR Susp", "°", SENSOR_REAR_RIGHT_SUSPENSION_ID);
-  sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID] = Sensor("FL Susp", "°", SENSOR_FRONT_LEFT_SUSPENSION_ID);
-  sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID] = Sensor("FR Susp", "°", SENSOR_FRONT_RIGHT_SUSPENSION_ID);
+  sensors[SENSOR_SPEED_ID] = Sensor("Speed", "Km/h", SENSOR_SPEED_ID, EK304CAN_ID_ADDRESS_ECU04);
+  sensors[SENSOR_ROTATION_ID] = Sensor("Mot. Rotation", "rpm", SENSOR_ROTATION_ID, EK304CAN_ID_ADDRESS_ECU02);
+  sensors[SENSOR_MOTOR_TEMPERATURE_ID] = Sensor("Mot. Temperature", "oC", SENSOR_MOTOR_TEMPERATURE_ID, EK304CAN_ID_ADDRESS_ECU03);
+  sensors[SENSOR_GEAR_ID] = Sensor("Gear", "", SENSOR_GEAR_ID, EK304CAN_ID_ADDRESS_ECU03);
+  sensors[SENSOR_GPS_LATITUDE_ID] = Sensor("Latitude", "o", SENSOR_GPS_LATITUDE_ID, EK304CAN_ID_ADDRESS_GTW);
+  sensors[SENSOR_GPS_LONGITUDE_ID] = Sensor("Longitude", "o", SENSOR_GPS_LONGITUDE_ID, EK304CAN_ID_ADDRESS_GTW);
+  sensors[SENSOR_GPS_ALTITUDE_ID] = Sensor("Altitude", "o", SENSOR_GPS_ALTITUDE_ID, EK304CAN_ID_ADDRESS_GTW);
+  sensors[SENSOR_GPS_FIX_ID] = Sensor("GPS Fix", "o", SENSOR_GPS_FIX_ID, EK304CAN_ID_ADDRESS_GTW);
+  sensors[SENSOR_GPS_HDOP_ID] = Sensor("GPS Fix", "", SENSOR_GPS_HDOP_ID, EK304CAN_ID_ADDRESS_GTW);
+  sensors[SENSOR_VOLTAGE_BATTERY_ID] = Sensor("Main Supply", "V", SENSOR_VOLTAGE_BATTERY_ID, EK304CAN_ID_ADDRESS_GTW);
+  sensors[SENSOR_MAP_ID] = Sensor("MAP", "kPa", SENSOR_MAP_ID, EK304CAN_ID_ADDRESS_ECU02);
+  sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID] = Sensor("Air Temp.", "°C", SENSOR_AIR_INTAKE_TEMPERATURE_ID, EK304CAN_ID_ADDRESS_ECU02);
+  sensors[SENSOR_WATER_TEMPERATURE_ID] = Sensor("Water Temp.", "°C", SENSOR_WATER_TEMPERATURE_ID, EK304CAN_ID_ADDRESS_ECU02);
+  sensors[SENSOR_TPS_ID] = Sensor("TPS", "%", SENSOR_TPS_ID, EK304CAN_ID_ADDRESS_ECU02);
+  sensors[SENSOR_LAMBDA_ID] = Sensor("Lambda", "%", SENSOR_LAMBDA_ID, EK304CAN_ID_ADDRESS_ECU02);
+  sensors[SENSOR_OIL_PRESSURE_ID] = Sensor("Oil Pressure", "kPa", SENSOR_OIL_PRESSURE_ID, EK304CAN_ID_ADDRESS_ECU04);
+  sensors[SENSOR_OIL_TEMPERATURE_ID] = Sensor("Oil Temp.", "°C", SENSOR_OIL_TEMPERATURE_ID, EK304CAN_ID_ADDRESS_ECU04);
+  sensors[SENSOR_REAR_LEFT_SUSPENSION_ID] = Sensor("RL Susp.", "°", SENSOR_REAR_LEFT_SUSPENSION_ID, EK304CAN_ID_ADDRESS_ECU04);
+  sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID] = Sensor("RR Susp", "°", SENSOR_REAR_RIGHT_SUSPENSION_ID, EK304CAN_ID_ADDRESS_ECU04);
+  sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID] = Sensor("FL Susp", "°", SENSOR_FRONT_LEFT_SUSPENSION_ID, EK304CAN_ID_ADDRESS_ECU01);
+  sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID] = Sensor("FR Susp", "°", SENSOR_FRONT_RIGHT_SUSPENSION_ID, EK304CAN_ID_ADDRESS_ECU01);
 }
 
 /**************************************************************************************************************************************/
@@ -893,6 +903,23 @@ void taskErrorsMonitor()
   }
   else
     sysErrors[ERROR_CAN_ECU15_ID].status = false;
+
+  //Verifica se há erro no cartão SD
+
+  if (flagErrorSDCardInit)
+  {
+    sysErrors[ERROR_SD_CARD_INIT].status = true;
+    listErrors.add(sysErrors[ERROR_SD_CARD_INIT].ToStringCenter(ERROR_MSGSIZE));
+  }
+  else
+    sysErrors[ERROR_SD_CARD_INIT].status = false;
+  if (flagErrorSDCardFull)
+  {
+    sysErrors[ERROR_SD_CARD_FULL].status = true;
+    listErrors.add(sysErrors[ERROR_SD_CARD_FULL].ToStringCenter(ERROR_MSGSIZE));
+  }
+  else
+    sysErrors[ERROR_SD_CARD_FULL].status = false;
 
   // algoritmo para mudar mensagem de erro na tela
   cntErrors = listErrors.size();
@@ -1201,12 +1228,11 @@ void taskBlink()
 
 void taskCAN()
 {
-  CAN_Frame frame;
-
-  if (CAN_ReceiveData(&mcp2515, &frame) == MCP2515::ERROR_OK)
+  can_frame frame;
+  if (mcp2515.readMessage(&frame) == MCP2515::ERROR_OK)
   {
-    if (frame.id.tipo == EK304CAN_ID_TYPE_ACK)
-    {
+    mcp2515.readMessage(&frame);
+    /*
       switch (frame.id.endOrigem)
       {
       case EK304CAN_ID_ADDRESS_ECU01:
@@ -1225,117 +1251,143 @@ void taskCAN()
         tmpRecebimentoAckECU15 = millis();
         break;
       }
-    }
-    else
+      */
+    switch (frame.can_id)
     {
-      switch (frame.id.endOrigem)
-      {
-      case EK304CAN_ID_ADDRESS_ECU01:
-        switch (frame.msg.variant)
-        {
-        case 0x00:
-          //Acelerômetro 1
-          break;
-        case 0x01:
-          //Acelerômetro 2
-          break;
-        case 0x02:
-          sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor = frame.msg.data[0] / (2.8 + 1 / 30);
-          sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = frame.msg.data[1] / (2.8 + 1 / 30);
-        }
-        break;
-      case EK304CAN_ID_ADDRESS_ECU02:
-        sensors[SENSOR_MAP_ID].valor = frame.msg.data[0];
-        sensors[SENSOR_LAMBDA_ID].valor = frame.msg.data[1];
-        sensors[SENSOR_TPS_ID].valor = frame.msg.data[2];
-        sensors[SENSOR_WATER_TEMPERATURE_ID].valor = frame.msg.data[3];
-        sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].valor = frame.msg.data[4];
-        sensors[SENSOR_ROTATION_ID].valor = frame.msg.data[5] * CONST_RPM;
-        break;
-      case EK304CAN_ID_ADDRESS_ECU03:
-        sensors[SENSOR_GEAR_ID].valor = frame.msg.data[4];
-        break;
-      case EK304CAN_ID_ADDRESS_ECU04:
-        switch (frame.msg.variant)
-        {
-        case 0x00:
-          sensors[SENSOR_SPEED_ID].valor = frame.msg.data[0];
-          sensors[SENSOR_MOTOR_TEMPERATURE_ID].valor = frame.msg.data[1];
-          sensors[SENSOR_OIL_PRESSURE_ID].valor = frame.msg.data[2];
-          sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor = frame.msg.data[3] / (2.8 + 1 / 30);
-          sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = frame.msg.data[4] / (2.8 + 1 / 30);
+    case 0x00:
+      //RPM
+      sensors[SENSOR_ROTATION_ID].valor = frame.data[0] * CONST_RPM;
+      setAckTime(sensors[SENSOR_ROTATION_ID].origin);
+      break;
+    case 0x01:
+      //Acelerômetro 1
+      break;
+    case 0x03:
+      //Acelerômetro 2
+      break;
+    case 0x05:
+      //Acelerômetro 3
+      break;
+    case 0x07:
+      //Lambda
+      sensors[SENSOR_LAMBDA_ID].valor = frame.data[0];
+      setAckTime(sensors[SENSOR_LAMBDA_ID].origin);
+      break;
+    case 0x08:
+      //Gear Position
+      sensors[SENSOR_GEAR_ID].valor = frame.data[4];
+      setAckTime(sensors[SENSOR_GEAR_ID].origin);
+      break;
+    case 0x09:
+      //Temperature
+      sensors[SENSOR_MOTOR_TEMPERATURE_ID].valor = frame.data[1];
+      setAckTime(sensors[SENSOR_MOTOR_TEMPERATURE_ID].origin);
+      break;
+    case 0x0A:
+      //Pressure
+      break;
+    case 0x0B:
+      //SuspRear
+      sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = frame.data[1] / (2.8 + 1 / 30);
+      sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor << 8;
+      sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor += frame.data[0] / (2.8 + 1 / 30);
+      sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor = frame.data[3] / (2.8 + 1 / 30);
+      sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor << 8;
+      sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor += frame.data[2] / (2.8 + 1 / 30);
+      setAckTime(sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].origin);
+      break;
+    case 0x0C:
+      //OilPressure
+      sensors[SENSOR_OIL_PRESSURE_ID].valor = frame.data[2];
+      setAckTime(sensors[SENSOR_OIL_PRESSURE_ID].origin);
+      break;
+    case 0x0D:
+      //OilTemp
+      sensors[SENSOR_OIL_TEMPERATURE_ID].valor = frame.data[2];
+      setAckTime(sensors[SENSOR_OIL_TEMPERATURE_ID].origin);
+      break;
+    case 0x0E:
+      //Speed
+      sensors[SENSOR_SPEED_ID].valor = frame.data[0];
+      setAckTime(sensors[SENSOR_SPEED_ID].origin);
+      break;
+    case 0x0F:
+      //AirTemp
+      sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].valor = frame.data[4];
+      setAckTime(sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].origin);
+      break;
+    case 0x10:
+      //WaterTemp
+      sensors[SENSOR_WATER_TEMPERATURE_ID].valor = frame.data[3];
+      setAckTime(sensors[SENSOR_WATER_TEMPERATURE_ID].origin);
+      break;
+    case 0x11:
+      //TPS
+      sensors[SENSOR_TPS_ID].valor = frame.data[2];
+      setAckTime(sensors[SENSOR_TPS_ID].origin);
+      break;
+    case 0x12: //SuspFront
+      sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = frame.data[1] / (2.8 + 1 / 30);
+      sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor << 8;
+      sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor += frame.data[0] / (2.8 + 1 / 30);
+      sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor = frame.data[3] / (2.8 + 1 / 30);
+      sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor << 8;
+      sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor += frame.data[2] / (2.8 + 1 / 30);
+      setAckTime(sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].origin);
 
-          Serial.println(sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor);
-          break;
-        case 0x01:
-          //Acelerômetro, fazer objeto?
-          break;
-        }
-        break;
-      case EK304CAN_ID_ADDRESS_ECU15:
-        break;
-      }
-
-      //Aqui começa a parte da gravação no cartão SD
-
-      Serial.println(micros());
-
-      sdCard.Write(STRING_FILE_NAME, "");
-      sdCard.Write(STRING_FILE_NAME, ";");
-      sdCard.Write(STRING_FILE_NAME, String(millis())); //Grava o tempo decorrido
-      sdCard.Write(STRING_FILE_NAME, ";");
-
-      sdCard.Write(STRING_FILE_NAME, String(frame.id.endOrigem)); //Grava os dados da CAN
-      sdCard.Write(STRING_FILE_NAME, ";");
-      sdCard.Write(STRING_FILE_NAME, String(frame.id.endDestino));
-      sdCard.Write(STRING_FILE_NAME, ";");
-      sdCard.Write(STRING_FILE_NAME, String(frame.id.tipo));
-      sdCard.Write(STRING_FILE_NAME, ";");
-      sdCard.Write(STRING_FILE_NAME, String(frame.msg.length));
-      sdCard.Write(STRING_FILE_NAME, ";");
-      sdCard.Write(STRING_FILE_NAME, String(frame.msg.variant));
-      sdCard.Write(STRING_FILE_NAME, ";");
-      for (int i = 0; i < frame.msg.length; i++)
-      {
-        sdCard.Write(STRING_FILE_NAME, String(frame.msg.data[i]));
-        sdCard.Write(STRING_FILE_NAME, ";");
-      }
-      sdCard.Write(STRING_FILE_NAME, ";\r\n"); //Quebra a linha
+      break;
+    case 0x13:
+      //MAP
+      sensors[SENSOR_MAP_ID].valor = frame.data[0];
+      setAckTime(sensors[SENSOR_MAP_ID].origin);
+      break;
     }
 
-    Serial.print(frame.id.endOrigem, HEX);
-    Serial.print(frame.id.endDestino, HEX);
-    Serial.print(frame.id.tipo, HEX);
+    //Aqui começa a parte da gravação no cartão SD
 
-    Serial.print(" ");
-    Serial.print(frame.msg.length);
-    Serial.print(" ");
-    Serial.print(frame.msg.variant, HEX);
-    Serial.print(" ");
+    sdCard.Write(STRING_FILE_NAME, "");
+    sdCard.Write(STRING_FILE_NAME, ";");
+    sdCard.Write(STRING_FILE_NAME, String(millis())); //Grava o tempo decorrido
+    sdCard.Write(STRING_FILE_NAME, ";");
 
-    for (int i = 0; i < frame.msg.length; i++)
+    sdCard.Write(STRING_FILE_NAME, String(frame.can_id)); //Grava os dados da CAN
+    sdCard.Write(STRING_FILE_NAME, ";");
+    sdCard.Write(STRING_FILE_NAME, String(frame.can_dlc));
+    sdCard.Write(STRING_FILE_NAME, ";");
+    for (int i = 0; i < frame.can_dlc; i++)
     {
-      Serial.print(frame.msg.data[i], HEX);
+      sdCard.Write(STRING_FILE_NAME, String(frame.data[i]));
+      sdCard.Write(STRING_FILE_NAME, ";");
+    }
+    sdCard.Write(STRING_FILE_NAME, ";\r\n"); //Quebra a linha
+
+    Serial.print(frame.can_dlc, HEX);
+    Serial.print(frame.can_dlc, HEX);
+
+    for (int i = 0; i < frame.can_dlc; i++)
+    {
+      Serial.print(frame.data[i], HEX);
       Serial.print(" ");
     }
 
     Serial.println();
-  }
+    /*    // Envia os pacotes de ACK
+    if (tmrCanTestOverflow)
+    {
+      if (EK304CAN_ECU01_ENABLED)
+        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU01);
+      if (EK304CAN_ECU02_ENABLED)
+        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU02);
+      if (EK304CAN_ECU03_ENABLED)
+        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU03);
+      if (EK304CAN_ECU04_ENABLED)
+        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU04);
+      if (EK304CAN_ECU15_ENABLED)
+        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU15);
 
-  if (tmrCanTestOverflow)
-  {
-    if (EK304CAN_ECU01_ENABLED)
-      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU01);
-    if (EK304CAN_ECU02_ENABLED)
-      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU02);
-    if (EK304CAN_ECU03_ENABLED)
-      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU03);
-    if (EK304CAN_ECU04_ENABLED)
-      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU04);
-    if (EK304CAN_ECU15_ENABLED)
-      CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_ECU15);
-
-    tmrCanTestOverflow = false;
+      tmrCanTestOverflow = false;
+    }  
+    */
   }
 }
 
@@ -1421,13 +1473,25 @@ void setupInit()
 void setupSDModule()
 {
   if (!sdCard.Init(SPI_CS_SD))
+  {
     Serial.println("Erro ao iniciar");
+    sysErrors[ERROR_SD_CARD_INIT].status = true;
+  }
   if (!sdCard.Write("xx.txt", "asoksaosak;"))
+  {
     Serial.println("Erro ao escrever");
+    sysErrors[ERROR_SD_CARD_INIT].status = true;
+  }
   if (!sdCard.Read("xx.txt"))
+  {
     Serial.println("Erro ao ler");
+    sysErrors[ERROR_SD_CARD_INIT].status = true;
+  }
   if (!sdCard.Remove("xx.txt"))
+  {
     Serial.println("Erro ao apagar");
+    sysErrors[ERROR_SD_CARD_INIT].status = true;
+  }
 }
 
 /**************************************************************************************************************************************/
@@ -1594,3 +1658,28 @@ void isrEncoderClick()
 /**************************************************************************************************************************************/
 /* FUNÇÕES GERAIS                                                                                                                     */
 /**************************************************************************************************************************************/
+
+void setAckTime(int origin)
+{
+  switch (origin)
+  {
+  case 0x01:
+    tmpRecebimentoAckECU01 = millis();
+    break;
+  case 0x02:
+    tmpRecebimentoAckECU02 = millis();
+    break;
+  case 0x03:
+    tmpRecebimentoAckECU03 = millis();
+    break;
+  case 0x04:
+    tmpRecebimentoAckECU04 = millis();
+    break;
+  case 0x0F:
+    tmpRecebimentoAckECU15 = millis();
+    break;
+
+  default:
+    break;
+  }
+}
