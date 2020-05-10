@@ -4,17 +4,26 @@
 #include <SPI.h>
 #include <Wire.h>
 
-//Protótipos de funções
+#include <mcp2515.h>
+#include <EK304ERRORS.h>
+#include <EK304SETTINGS.h>
+//Declaração de tarefas
 
-void pulsoOcorreu(void);
 void taskVelocidade(void);
 void taskPressao(void);
 void taskCAN(void);
-void taskAcele(void);
+void taskAcc(void);
 void taskSusp(void);
 void taskTemp(void);
 void taskScheduler(void);
 void taskBlink(void);
+
+//Protótipos de funções
+
+void pulseHappened(void);
+void setupInit(); //PinModes, inicializar outras coisas, entre outros
+void setupCAN();  //Setup da CAN, pacotes e parâmetros
+void setupACC();  //Setup dos acelerômetros
 
 //Definição das portas
 
@@ -68,11 +77,17 @@ int tmrBlinkCount = 0;
 #define CAN_SO 12
 #define CAN_CS 10
 
-//Setup da CAN
+//Criar pacotes da CAN
 
-CAN_Frame canOUTROS; //Frame de Velocidade, suspensao, temperatura do oleo, pressao do oleo, posicao das suspensoes traseiras.
-CAN_Frame canACEL;   //Frame pro acelerometro
-CAN_Frame canACK;    //Frame ACK
+CAN_Frame canOTHER; //Frame de Velocidade, suspensao, temperatura do oleo, pressao do oleo, posicao das suspensoes traseiras.
+CAN_Frame canACK;   //Frame ACK
+
+//Atualizado
+can_frame canACEL; //Frame pro acelerometro
+can_frame canOilPressure;
+can_frame canOilTemp;
+can_frame canSpeed;
+can_frame canSuspRear;
 
 //Variaveis globais
 
@@ -112,58 +127,14 @@ void setup()
 {
   //Serial.println("Começou o setup");
 
-  SPI.begin();
-  Wire.begin(); //Inicia I2C
-  //Serial.begin(9600);
-
-  //Serial.println("Aehoo");
-
-  //Programação dos acelerômetros
-
-  Wire.beginTransmission(MPU1);
-  Wire.write(0x6B);
-
-  //Inicializa o MPU-6050
-  Wire.write(0);
-  Wire.endTransmission(true);
-
-  //Modos das entradas
-
-  pinMode(PIN_VELOCIDADE, INPUT_PULLUP); //Toda vez que tem uma subida chama a tarefa
-  pinMode(PIN_PRESSAO, INPUT_PULLUP);    // ------------------------------------------------ checar o motivo de ser pullup
-  pinMode(PIN_TEMP_OLEO, INPUT);
-  pinMode(PIN_SUSP_DIREITA, INPUT);
-  pinMode(PIN_SUSP_ESQUERDA, INPUT);
-  pinMode(LED_CPU, OUTPUT); //LED do módulo
-
-  //Definicao da CAN
-
-  digitalWrite(LED_CPU, HIGH); //Deixa o LED ligado enquanto está settando a CAN
-  CAN_Init(&mcp2515, CAN_1000KBPS);
-  digitalWrite(LED_CPU, LOW); //Desliga o LED
-
-  //Definicao dos ids e tamanhos e sensores
-
-  canOUTROS.id.endOrigem = EK304CAN_ID_ADDRESS_THIS; //Endereço de origem do módulo 4
-  canOUTROS.id.endDestino = EK304CAN_ID_ADDRESS_GTW; //Para o módulo 0
-  canOUTROS.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;   //Tipo de dado "dados"
-  canOUTROS.msg.length = 5;                          //5 bytes
-  canOUTROS.msg.variant = 0x00;                      //Pacote 1
-
-  canACEL.id.endOrigem = EK304CAN_ID_ADDRESS_THIS; //Endereço de origem - módulo 4
-  canACEL.id.endDestino = EK304CAN_ID_ADDRESS_GTW; //Para o módulo 0
-  canACEL.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;   //Tipo de dados "Dados"
-  canACEL.msg.length = 6;                          //Tamanho do pacote
-  canACEL.msg.variant = 0x01;                      //Pacote 2
-
-  //Outros
-
-  attachInterrupt(digitalPinToInterrupt(PIN_VELOCIDADE), taskVelocidade, RISING); //Quando o sensor passa de LOW pra HIGH, chama a funcao taskPulso
+  setupInit(); //PinModes, inicializar outras coisas, entre outros
+  setupCAN();  //Setup da CAN, pacotes e parâmetros
+  setupACC();  //Setup dos acelerômetros
 
   Timer1.initialize(TMR_BASE);           //Inicializar a biblioteca Timer1 com o tempo de TMR_BASE
   Timer1.attachInterrupt(taskScheduler); //Define o escalonador
 
-  //Variaveis globais para ativação das tarefas
+  //Variaveis para ativação das tarefas
 
   tmrCANSendEnable = true;
   tmrTempEnable = true;
@@ -178,7 +149,7 @@ void setup()
 void loop()
 {
   taskCAN();
-  taskAcele();
+  taskAcc();
   taskPressao();
   taskSusp();
   taskTemp();
@@ -186,7 +157,7 @@ void loop()
 }
 
 /*--------------------------------------------------*/
-/*-------------------- Funções ---------------------*/
+/*--------------------- TASKS ----------------------*/
 /*--------------------------------------------------*/
 
 void taskVelocidade(void)
@@ -205,7 +176,7 @@ void taskVelocidade(void)
 
     //media = map(media, 0, MAX_VELOCIDADE, 0, 255); //Faz uma regra de 3 com a variável media
 
-    canOUTROS.msg.data[0] = media; //Coloca o valor da média no pacote da CAN
+    canOTHER.msg.data[0] = media; //Coloca o valor da média no pacote da CAN
 
     contador = 0;            //faz o contador voltar para 1
     tempoInicial = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
@@ -224,7 +195,9 @@ void taskTemp(void)
 
     unsigned int sender = int((-1 / 0.038) * log((analogRead(PIN_TEMP_OLEO) * 1000) / (7656.8 * (5 - analogRead(PIN_TEMP_OLEO)))));
 
-    canOUTROS.msg.data[1] = sender & 0xFF;
+    canOilTemp.data[0] = sender & 0xFF;
+
+    mcp2515.sendMessage(&canOilTemp);
 
     //Checar se precisa alterar para enviar via CAN
 
@@ -243,7 +216,9 @@ void taskPressao(void)
     //pressao
 
     voltage = map(analogRead(PIN_PRESSAO), VALOR_MIN_LEITURA_PRES, VALOR_MAX_LEITURA_PRES, VALOR_MIN_PRES, VALOR_MAX_PRES); //Faz regra de  com o valor da leitura
-    canOUTROS.msg.data[2] = (3.0 * (voltage - 0.47));                                                                       //Faz os cálculos para converter a tensao lida em pressao
+    canOilPressure.data[0] = (3.0 * (voltage - 0.47));                                                                      //Faz os cálculos para converter a tensao lida em pressao
+
+    mcp2515.sendMessage(&canOilPressure);
 
     //Checar se precisa alterar o valor para a transmissão via CAN
 
@@ -257,12 +232,15 @@ void taskSusp(void)
   {
     //Suspensao
 
-    unsigned int sender1 = map(analogRead(PIN_SUSP_DIREITA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 255); //Leitura do valor do TPS e regra de 3 para enviar via CAN
+    unsigned int sender1 = analogRead(PIN_SUSP_ESQUERDA);
 
-    unsigned int sender2 = map(analogRead(PIN_SUSP_ESQUERDA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 255); //Análogo ao de cima
+    unsigned int sender2 = analogRead(PIN_SUSP_DIREITA);
 
-    canOUTROS.msg.data[3] = sender1 & 0xFF;
-    canOUTROS.msg.data[4] = sender2 & 0xFF;
+    canSuspRear.data[1] = sender1 & 0xFF << 8;
+    canSuspRear.data[0] = sender1 & 0xFF;
+
+    canSuspRear.data[3] = sender2 & 0xFF << 8;
+    canSuspRear.data[2] = sender2 & 0xFF;
 
     tmrSuspOverflow = false;
   }
@@ -282,17 +260,17 @@ void taskCAN(void)
     }
   }
 
-  if (tmrCANSendOverflow)
+  if (tmrCANSendOverflow) //Tirar essa parte depois da mudança dos ids da CAN
   {
     //Envios
 
-    CAN_SendData(&mcp2515, &canOUTROS);
+    //CAN_SendData(&mcp2515, &canOTHER);
 
     tmrCANSendOverflow = false;
   }
 }
 
-void taskAcele(void) //Tarefa do acelerometro
+void taskAcc(void) //Tarefa do acelerometro
 {
   if (tmrAceleOverflow)
   {
@@ -330,14 +308,14 @@ void taskAcele(void) //Tarefa do acelerometro
     unsigned int fGyy1 = map((Gyy1 + 250), 0, 500, 0, 250); // Essa escala se refere a -250 a 250 graus/s. // Aproximadamente 250 se refere a 250 graus/s.
     unsigned int fGyz1 = map((Gyz1 + 250), 0, 500, 0, 250); // Aproximadamente 0 se refere a -250 graus/s.
 
-    canACEL.msg.data[0] = fAcx1 & 0xFF;
-    canACEL.msg.data[1] = fAcy1 & 0xFF;
-    canACEL.msg.data[2] = fAcz1 & 0xFF;
-    canACEL.msg.data[3] = fGyx1 & 0xFF;
-    canACEL.msg.data[4] = fGyy1 & 0xFF;
-    canACEL.msg.data[5] = fGyz1 & 0xFF;
+    canACEL.data[0] = fAcx1 & 0xFF;
+    canACEL.data[1] = fAcy1 & 0xFF;
+    canACEL.data[2] = fAcz1 & 0xFF;
+    canACEL.data[3] = fGyx1 & 0xFF;
+    canACEL.data[4] = fGyy1 & 0xFF;
+    canACEL.data[5] = fGyz1 & 0xFF;
 
-    CAN_SendData(&mcp2515, &canACEL);
+    mcp2515.sendMessage(&canACEL);
 
     /*
     //PARA TESTE:
@@ -359,6 +337,61 @@ void taskAcele(void) //Tarefa do acelerometro
     tmrAceleOverflow = false;
   }
 }
+
+//Funções do Setup
+
+void setupInit()
+{
+  SPI.begin();
+  Wire.begin(); //Inicia I2C
+  //Serial.begin(9600);
+
+  //Serial.println("Aehoo");
+
+  //Modos das entradas
+
+  pinMode(PIN_VELOCIDADE, INPUT_PULLUP); //Toda vez que tem uma subida chama a tarefa
+  pinMode(PIN_PRESSAO, INPUT_PULLUP);    // ------------------------------------------------ checar o motivo de ser pullup
+  pinMode(PIN_TEMP_OLEO, INPUT);
+  pinMode(PIN_SUSP_DIREITA, INPUT);
+  pinMode(PIN_SUSP_ESQUERDA, INPUT);
+  pinMode(LED_CPU, OUTPUT);                                                       //LED do módulo
+  attachInterrupt(digitalPinToInterrupt(PIN_VELOCIDADE), taskVelocidade, RISING); //Quando o sensor passa de LOW pra HIGH, chama a funcao taskPulso
+}
+
+void setupCAN()
+{
+  digitalWrite(LED_CPU, HIGH); //Deixa o LED ligado enquanto está settando a CAN
+  CAN_Init(&mcp2515, CAN_1000KBPS);
+  digitalWrite(LED_CPU, LOW); //Desliga o LED
+
+  canOTHER.id.endOrigem = EK304CAN_ID_ADDRESS_THIS; //Endereço de origem do módulo 4
+  canOTHER.id.endDestino = EK304CAN_ID_ADDRESS_GTW; //Para o módulo 0
+  canOTHER.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;   //Tipo de dado "dados"
+  canOTHER.msg.length = 5;                          //5 bytes
+  canOTHER.msg.variant = 0x00;                      //Pacote 1
+
+  //canACEL.id.endOrigem = EK304CAN_ID_ADDRESS_THIS; //Endereço de origem - módulo 4
+  //canACEL.id.endDestino = EK304CAN_ID_ADDRESS_GTW; //Para o módulo 0
+  //canACEL.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;   //Tipo de dados "Dados"
+  canACEL.can_id = ACC_03; //Define o id como o do acelerômetro 3 da CAN
+  canACEL.can_dlc = 6;     //Tamanho do pacote
+  //canACEL.msg.variant = 0x01;                      //Pacote 2
+}
+
+void setupACC()
+{
+  //Programação dos acelerômetros
+
+  Wire.beginTransmission(MPU1);
+  Wire.write(0x6B);
+
+  //Inicializa o MPU-6050
+  Wire.write(0);
+  Wire.endTransmission(true);
+}
+
+//Scheduler
 
 void taskScheduler(void) //Aqui comeca o escalonador
 {
@@ -432,3 +465,5 @@ void taskBlink(void)
     tmrBlinkEnable = false;
   }
 }
+
+//Outras funções

@@ -274,6 +274,17 @@ struct Encoder
   char giro;  // sentido de giro (-1 antihorário, 0 parado, 1 horário)
 };
 
+struct acc
+{
+  int id;
+  long accX;
+  long accY;
+  long accZ;
+  long tiltX;
+  long tiltY;
+  long tiltZ;
+};
+
 // armazena as informações de data/hora
 class DateTime
 {
@@ -594,6 +605,8 @@ void setupErrors()
   sysErrors[ERROR_CAN_ECU03_ID] = Error("CAN_ECU03_FAILURE", "ECU03 failure", ERROR_CAN_ECU03_ID, ERROR_CAN_ECU03_CODE);
   sysErrors[ERROR_CAN_ECU04_ID] = Error("CAN_ECU04_FAILURE", "ECU04 failure", ERROR_CAN_ECU04_ID, ERROR_CAN_ECU04_CODE);
   sysErrors[ERROR_CAN_ECU15_ID] = Error("CAN_ECU15_FAILURE", "ECU15 failure", ERROR_CAN_ECU15_ID, ERROR_CAN_ECU15_CODE);
+  sysErrors[ERROR_SD_CARD_INIT] = Error("SD_CARD_FAILURE", "SD Card Initialization failure", ERROR_SD_CARD_INIT, ERROR_SD_CARD_INIT);
+  sysErrors[ERROR_SD_CARD_FULL] = Error("SD_CARD_FULL", "SD Card full", ERROR_SD_CARD_FULL, ERROR_SD_CARD_FULL);
 
   tmrGPSTimeoutEnabled = true;
   tmrErrorMsgsEnabled = true;
@@ -1289,10 +1302,10 @@ void taskCAN()
     case 0x0B:
       //SuspRear
       sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = frame.data[1] / (2.8 + 1 / 30);
-      sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor << 8;
+      sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor << 8;
       sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor += frame.data[0] / (2.8 + 1 / 30);
       sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor = frame.data[3] / (2.8 + 1 / 30);
-      sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor << 8;
+      sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor = sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor << 8;
       sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor += frame.data[2] / (2.8 + 1 / 30);
       setAckTime(sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].origin);
       break;
@@ -1328,10 +1341,10 @@ void taskCAN()
       break;
     case 0x12: //SuspFront
       sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = frame.data[1] / (2.8 + 1 / 30);
-      sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor << 8;
+      sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor << 8;
       sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor += frame.data[0] / (2.8 + 1 / 30);
       sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor = frame.data[3] / (2.8 + 1 / 30);
-      sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor << 8;
+      sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor = sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor << 8;
       sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor += frame.data[2] / (2.8 + 1 / 30);
       setAckTime(sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].origin);
 
