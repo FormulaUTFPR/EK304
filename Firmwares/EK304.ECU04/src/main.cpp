@@ -9,8 +9,8 @@
 #include <EK304SETTINGS.h>
 //Declaração de tarefas
 
-void taskVelocidade(void);
-void taskPressao(void);
+void taskSpeed(void);
+void taskPressure(void);
 void taskCAN(void);
 void taskAcc(void);
 void taskSusp(void);
@@ -27,15 +27,15 @@ void setupACC();  //Setup dos acelerômetros
 
 //Definição das portas
 
-#define PIN_VELOCIDADE 3 //Porta para o sensor de rotação
-#define LED_CPU 8        //Porta para o LED de resposta da ACK
+#define PIN_SPEED 3 //Porta para o sensor de rotação
+#define LED_CPU 8   //Porta para o LED de resposta da ACK
 
 //Portas analogicas
 
-#define PIN_TEMP_OLEO A1     //Porta para o sensor de temperatura do oleo
-#define PIN_PRESSAO A0       //Porta para o sensor de pressão
-#define PIN_SUSP_DIREITA A2  //Porta para o sensor da suspensao direita
-#define PIN_SUSP_ESQUERDA A3 //Porta para o sensor da suspensao esquerda
+#define PIN_OIL_TEMP A1   //Porta para o sensor de temperatura do oleo
+#define PIN_PRESSURE A0   //Porta para o sensor de pressão
+#define PIN_RIGHT_SUSP A2 //Porta para o sensor da suspensao direita
+#define PIN_LEFT_SUSP A3  //Porta para o sensor da suspensao esquerda
 
 //Endereço do acelerometro
 const int MPU1 = 0x68; //Endereço é importante para pinagem
@@ -54,17 +54,17 @@ bool tmrTempEnable = false;
 bool tmrTempOverflow = false;
 int tmrTempCount = 0;
 
-bool tmrPressaoEnable = false;
-bool tmrPressaoOverflow = false;
-int tmrPressaoCount = 0;
+bool tmrPressureEnable = false;
+bool tmrPressureOverflow = false;
+int tmrPressureCount = 0;
 
 bool tmrSuspEnable = false;
 bool tmrSuspOverflow = false;
 int tmrSuspCount = 0;
 
-bool tmrAceleEnable = false;
-bool tmrAceleOverflow = false;
-int tmrAceleCount = 0;
+bool tmrAccEnable = false;
+bool tmrAccOverflow = false;
+int tmrAccCount = 0;
 
 bool tmrBlinkOverflow = false;
 bool tmrBlinkEnable = false;
@@ -79,9 +79,6 @@ int tmrBlinkCount = 0;
 
 //Criar pacotes da CAN
 
-CAN_Frame canOTHER; //Frame de Velocidade, suspensao, temperatura do oleo, pressao do oleo, posicao das suspensoes traseiras.
-CAN_Frame canACK;   //Frame ACK
-
 //Atualizado
 can_frame canACEL; //Frame pro acelerometro
 can_frame canOilPressure;
@@ -91,35 +88,35 @@ can_frame canSuspRear;
 
 //Variaveis globais
 
-#define NUM_AMOSTRAGEM 5           //Numero de amostragens pra media do calculo da velocidade
-#define NUM_IMAS 9                 //Numero de imãs na roda fônica
-#define MAX_VELOCIDADE 10000       //Numero max de velocidade
-#define VALOR_MIN_LEITURA_SUSP 117 //Minimo valor de leitura na porta analogica
-#define VALOR_MAX_LEITURA_SUSP 914 //Maximo valor de leitura na porta analogica
-#define VALOR_MIN_LEITURA_OLEO 870 //Minimo valor de leitura na porta analogica
-#define VALOR_MAX_LEITURA_OLEO 216 //Maximo valor de leitura na porta analogica
-#define VALOR_MIN_LEITURA_PRES 102 //Leitura minima de 0,5v --Ajustar
-#define VALOR_MAX_LEITURA_PRES 921 //Leitura máxima de 4,5v --Ajustar
-#define VALOR_MIN_PRES 0           //Valor min em bar
-#define VALOR_MAX_PRES 10          //Valor máx em bar
+#define SAMPLE_QTTY 5     //Numero de amostragens pra media do calculo da velocidade
+#define MAGNET_QTTY 9     //Numero de imãs na roda fônica
+#define MAX_SPEED 10000   //Numero max de velocidade
+#define MIN_READ_SUSP 117 //Minimo valor de leitura na porta analogica
+#define MAX_READ_SUSP 914 //Maximo valor de leitura na porta analogica
+#define MIN_READ_OIL 870  //Minimo valor de leitura na porta analogica
+#define MAX_READ_OIL 216  //Maximo valor de leitura na porta analogica
+#define MIN_READ_PRES 102 //Leitura minima de 0,5v --Ajustar
+#define MAX_READ_PRES 921 //Leitura máxima de 4,5v --Ajustar
+#define MIN_PRES 0        //Valor min em bar
+#define MAX_PRES 10       //Valor máx em bar
 
-#define TMR_BASE 100000     //Temporizador base para o Timer1
-#define TMR_CANSEND 500000  //Chamar a função da CAN a cada 0,5 segundos
-#define TMR_TEMP 1000000    //Leitura da temperatura a cada 0,1 segundo
-#define TMR_PRESSAO 1000000 //Leitura da pressão a cada 0,1 segundo
-#define TMR_SUSP 1000000    //Leitura dos dados da suspensão 0,1 segundo
-#define TMR_ACELE 1000000   //Leitura dos dados do acelerômetro a cada 0,1 segundo
-#define TMR_BLINK 100000    //Chamar a função para piscar o LED do módulo
+#define TMR_BASE 100000      //Temporizador base para o Timer1
+#define TMR_CANSEND 500000   //Chamar a função da CAN a cada 0,5 segundos
+#define TMR_TEMP 1000000     //Leitura da temperatura a cada 0,1 segundo
+#define TMR_PRESSURE 1000000 //Leitura da pressão a cada 0,1 segundo
+#define TMR_SUSP 1000000     //Leitura dos dados da suspensão 0,1 segundo
+#define TMR_ACC 1000000      //Leitura dos dados do acelerômetro a cada 0,1 segundo
+#define TMR_BLINK 100000     //Chamar a função para piscar o LED do módulo
 
 //Declaração de variaveis globais
 
-unsigned long long difTempo; //Valor da diferenca de tempo entre dois pulsos
-unsigned int media;          //Media entre alguns velocidades para ter um valor com menos interferencias
-unsigned long frequencia;    //Frequencia não suavizada
-unsigned long velocidade;    //Velocidade nao suavizada - o suavizado é a media
-unsigned long soma;          //Soma dos periodos para fazer a media
-int contador;                //contador para fazer a media
-unsigned long tempoInicial;  //Tempo em Microsegundos em que ocorreu o pulso
+unsigned long long timeDif; //Valor da diferenca de tempo entre dois pulsos
+unsigned int average;       //Media entre alguns velocidades para ter um valor com menos interferencias
+unsigned long freq;         //Frequencia não suavizada
+unsigned long rawSpeed;     //Velocidade nao suavizada - o suavizado é a media
+unsigned long soma;         //Soma dos periodos para fazer a media
+int counter;                //contador para fazer a media
+unsigned long initialTime;  //Tempo em Microsegundos em que ocorreu o pulso
 
 MCP2515 mcp2515(CAN_CS);
 
@@ -139,8 +136,8 @@ void setup()
   tmrCANSendEnable = true;
   tmrTempEnable = true;
   tmrSuspEnable = true;
-  tmrPressaoEnable = true;
-  tmrAceleEnable = true;
+  tmrPressureEnable = true;
+  tmrAccEnable = true;
 
   //Serial.println("Acabou o setup");
 
@@ -150,7 +147,7 @@ void loop()
 {
   taskCAN();
   taskAcc();
-  taskPressao();
+  taskPressure();
   taskSusp();
   taskTemp();
   taskBlink();
@@ -160,32 +157,30 @@ void loop()
 /*--------------------- TASKS ----------------------*/
 /*--------------------------------------------------*/
 
-void taskVelocidade(void)
+void taskSpeed(void)
 {
-  if (contador >= NUM_AMOSTRAGEM) //Checa se o contador estorou
+  if (counter >= SAMPLE_QTTY) //Checa se o contador estorou
   {
-    difTempo = micros() - tempoInicial; //Calcula a diferenca de tempo entre dois pulsos
-    frequencia = 1000000 / difTempo;    //Faz o perídodo virar frequencia
-    velocidade = frequencia * 60;       //Multiplica por 60 a frequencia para ter rotacoes por MINUTO
-    media = velocidade * contador;      //Multiplica a velocidade por (idealmente) NUM_AMOSTRAGEM para ter a media entre os NUM_AMOSTRAGEM periodos
-    media = media / NUM_IMAS;           //Divide a media pelo numero de imãs na roda fonica
+    timeDif = micros() - initialTime; //Calcula a diferenca de tempo entre dois pulsos
+    freq = 1000000 / timeDif;         //Faz o perídodo virar frequencia
+    rawSpeed = freq * 60;             //Multiplica por 60 a frequencia para ter rotacoes por MINUTO
+    average = rawSpeed * counter;     //Multiplica a velocidade por (idealmente) SAMPLE_QTTY para ter a media entre os SAMPLE_QTTY periodos
+    average = average / MAGNET_QTTY;  //Divide a media pelo numero de imãs na roda fonica
 
-    //media = media / NUM_IMAS; //Caso seja necessario, colocar numero de imas na roda em que as leituras são feitas
+    //average = average / MAGNET_QTTY; //Caso seja necessario, colocar numero de imas na roda em que as leituras são feitas
 
-    //Serial.println(media);
+    //Serial.println(average);
 
-    //media = map(media, 0, MAX_VELOCIDADE, 0, 255); //Faz uma regra de 3 com a variável media
+    canSpeed.data[0] = average; //Coloca o valor da média no pacote da CAN
 
-    canOTHER.msg.data[0] = media; //Coloca o valor da média no pacote da CAN
-
-    contador = 0;            //faz o contador voltar para 1
-    tempoInicial = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
+    counter = 0;            //faz o contador voltar para 1
+    initialTime = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
   }
   else
   {
-    contador++; //Incrementa o contador
+    counter++; //Incrementa o contador
   }
-} //Acaba a tarefa taskVelocidade
+} //Acaba a tarefa taskSpeed
 
 void taskTemp(void)
 {
@@ -193,7 +188,7 @@ void taskTemp(void)
   {
     //Sensor MTE4053 (temperatura)
 
-    unsigned int sender = int((-1 / 0.038) * log((analogRead(PIN_TEMP_OLEO) * 1000) / (7656.8 * (5 - analogRead(PIN_TEMP_OLEO)))));
+    unsigned int sender = int((-1 / 0.038) * log((analogRead(PIN_OIL_TEMP) * 1000) / (7656.8 * (5 - analogRead(PIN_OIL_TEMP)))));
 
     canOilTemp.data[0] = sender & 0xFF;
 
@@ -205,9 +200,9 @@ void taskTemp(void)
   }
 }
 
-void taskPressao(void)
+void taskPressure(void)
 {
-  if (tmrPressaoOverflow)
+  if (tmrPressureOverflow)
   {
     //Sensor de pressao
 
@@ -215,14 +210,14 @@ void taskPressao(void)
 
     //pressao
 
-    voltage = map(analogRead(PIN_PRESSAO), VALOR_MIN_LEITURA_PRES, VALOR_MAX_LEITURA_PRES, VALOR_MIN_PRES, VALOR_MAX_PRES); //Faz regra de  com o valor da leitura
-    canOilPressure.data[0] = (3.0 * (voltage - 0.47));                                                                      //Faz os cálculos para converter a tensao lida em pressao
+    voltage = map(analogRead(PIN_PRESSURE), MIN_READ_PRES, MAX_READ_PRES, MIN_PRES, MAX_PRES); //Faz regra de  com o valor da leitura
+    canOilPressure.data[0] = (3.0 * (voltage - 0.47));                                         //Faz os cálculos para converter a tensao lida em pressao
 
     mcp2515.sendMessage(&canOilPressure);
 
     //Checar se precisa alterar o valor para a transmissão via CAN
 
-    tmrPressaoOverflow = false;
+    tmrPressureOverflow = false;
   }
 }
 
@@ -232,9 +227,9 @@ void taskSusp(void)
   {
     //Suspensao
 
-    unsigned int sender1 = analogRead(PIN_SUSP_ESQUERDA);
+    unsigned int sender1 = analogRead(PIN_LEFT_SUSP);
 
-    unsigned int sender2 = analogRead(PIN_SUSP_DIREITA);
+    unsigned int sender2 = analogRead(PIN_RIGHT_SUSP);
 
     canSuspRear.data[1] = sender1 & 0xFF << 8;
     canSuspRear.data[0] = sender1 & 0xFF;
@@ -248,6 +243,7 @@ void taskSusp(void)
 
 void taskCAN(void)
 {
+  /*
   if (CAN_ReceiveData(&mcp2515, &canACK) == MCP2515::ERROR_OK)
   {
     if (canACK.id.tipo == EK304CAN_ID_TYPE_ACK)
@@ -259,7 +255,7 @@ void taskCAN(void)
       }
     }
   }
-
+  */
   if (tmrCANSendOverflow) //Tirar essa parte depois da mudança dos ids da CAN
   {
     //Envios
@@ -272,7 +268,7 @@ void taskCAN(void)
 
 void taskAcc(void) //Tarefa do acelerometro
 {
-  if (tmrAceleOverflow)
+  if (tmrAccOverflow)
   {
 
     float AcX, AcY, AcZ, GyX, GyY, GyZ;
@@ -334,7 +330,7 @@ void taskAcc(void) //Tarefa do acelerometro
     Serial.println(" ");
     */
 
-    tmrAceleOverflow = false;
+    tmrAccOverflow = false;
   }
 }
 
@@ -350,13 +346,13 @@ void setupInit()
 
   //Modos das entradas
 
-  pinMode(PIN_VELOCIDADE, INPUT_PULLUP); //Toda vez que tem uma subida chama a tarefa
-  pinMode(PIN_PRESSAO, INPUT_PULLUP);    // ------------------------------------------------ checar o motivo de ser pullup
-  pinMode(PIN_TEMP_OLEO, INPUT);
-  pinMode(PIN_SUSP_DIREITA, INPUT);
-  pinMode(PIN_SUSP_ESQUERDA, INPUT);
-  pinMode(LED_CPU, OUTPUT);                                                       //LED do módulo
-  attachInterrupt(digitalPinToInterrupt(PIN_VELOCIDADE), taskVelocidade, RISING); //Quando o sensor passa de LOW pra HIGH, chama a funcao taskPulso
+  pinMode(PIN_SPEED, INPUT_PULLUP);    //Toda vez que tem uma subida chama a tarefa
+  pinMode(PIN_PRESSURE, INPUT_PULLUP); // ------------------------------------------------ checar o motivo de ser pullup
+  pinMode(PIN_OIL_TEMP, INPUT);
+  pinMode(PIN_RIGHT_SUSP, INPUT);
+  pinMode(PIN_LEFT_SUSP, INPUT);
+  pinMode(LED_CPU, OUTPUT);                                             //LED do módulo
+  attachInterrupt(digitalPinToInterrupt(PIN_SPEED), taskSpeed, RISING); //Quando o sensor passa de LOW pra HIGH, chama a funcao taskPulso
 }
 
 void setupCAN()
@@ -364,7 +360,7 @@ void setupCAN()
   digitalWrite(LED_CPU, HIGH); //Deixa o LED ligado enquanto está settando a CAN
   CAN_Init(&mcp2515, CAN_1000KBPS);
   digitalWrite(LED_CPU, LOW); //Desliga o LED
-
+                              /*
   canOTHER.id.endOrigem = EK304CAN_ID_ADDRESS_THIS; //Endereço de origem do módulo 4
   canOTHER.id.endDestino = EK304CAN_ID_ADDRESS_GTW; //Para o módulo 0
   canOTHER.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;   //Tipo de dado "dados"
@@ -374,9 +370,22 @@ void setupCAN()
   //canACEL.id.endOrigem = EK304CAN_ID_ADDRESS_THIS; //Endereço de origem - módulo 4
   //canACEL.id.endDestino = EK304CAN_ID_ADDRESS_GTW; //Para o módulo 0
   //canACEL.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;   //Tipo de dados "Dados"
-  canACEL.can_id = ACC_03; //Define o id como o do acelerômetro 3 da CAN
-  canACEL.can_dlc = 6;     //Tamanho do pacote
-  //canACEL.msg.variant = 0x01;                      //Pacote 2
+  */
+
+  canACEL.can_id = EK304CAN_ID_ADDRESS_ACC_03; //Define o id como o do acelerômetro 3 da CAN
+  canACEL.can_dlc = 6;                         //Tamanho do pacote
+
+  canOilPressure.can_id = EK304CAN_ID_ADDRESS_OIL_PRESSURE;
+  canOilPressure.can_dlc = 1;
+
+  canOilTemp.can_id = EK304CAN_ID_ADDRESS_OIL_TEMPERATURE;
+  canOilTemp.can_dlc = 1;
+
+  canSpeed.can_id = EK304CAN_ID_ADDRESS_SPEED;
+  canSpeed.can_dlc = 1;
+
+  canSuspRear.can_id = EK304CAN_ID_ADDRESS_SUSP_REAR;
+  canSuspRear.can_dlc = 4;
 }
 
 void setupACC()
@@ -425,23 +434,23 @@ void taskScheduler(void) //Aqui comeca o escalonador
     }
   }
 
-  if (tmrPressaoEnable)
+  if (tmrPressureEnable)
   {
-    tmrPressaoCount++;
-    if (tmrPressaoCount >= TMR_PRESSAO / TMR_BASE)
+    tmrPressureCount++;
+    if (tmrPressureCount >= TMR_PRESSURE / TMR_BASE)
     {
-      tmrPressaoCount = 0;
-      tmrPressaoOverflow = true;
+      tmrPressureCount = 0;
+      tmrPressureOverflow = true;
     }
   }
 
-  if (tmrAceleEnable)
+  if (tmrAccEnable)
   {
-    tmrAceleCount++;
-    if (tmrAceleCount >= TMR_ACELE / TMR_BASE)
+    tmrAccCount++;
+    if (tmrAccCount >= TMR_ACC / TMR_BASE)
     {
-      tmrAceleCount = 0;
-      tmrAceleOverflow = true;
+      tmrAccCount = 0;
+      tmrAccOverflow = true;
     }
   }
 
