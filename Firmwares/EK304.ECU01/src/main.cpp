@@ -71,10 +71,10 @@ bool tmrAcele2Enable = true;
 int tmrAcele2Count = 0;
 
 //CAN
-CAN_Frame Modulo1;
-CAN_Frame Modulo2;
-CAN_Frame Suspensao;
-CAN_Frame Frameack;
+can_frame Modulo1;
+can_frame Modulo2;
+can_frame Suspensao;
+can_frame Frameack;
 MCP2515 mcp2515(10);
 
 void setup()
@@ -97,11 +97,8 @@ void setup()
   tmrSuspEnable = true;
 
   //MODULO 1
-  Modulo1.id.endOrigem = EK304CAN_ID_ADDRESS_ECU01;
-  Modulo1.id.endDestino = EK304CAN_ID_ADDRESS_GTW;
-  Modulo1.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;
-  Modulo1.msg.variant = 0x00;
-  Modulo1.msg.length = 6;
+  Modulo1.can_id = EK304CAN_ID_ADDRESS_ACC_01;
+  Modulo1.can_dlc = 6;
   /*
   Modulo1.msg.data[0] = fAcx1;
   Modulo1.msg.data[1] = fAcy1;
@@ -112,11 +109,8 @@ void setup()
   */
 
   //MODULO 2
-  Modulo2.id.endOrigem = EK304CAN_ID_ADDRESS_ECU01;
-  Modulo2.id.endDestino = EK304CAN_ID_ADDRESS_GTW;
-  Modulo2.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;
-  Modulo2.msg.variant = 0x01;
-  Modulo2.msg.length = 6;
+  Modulo2.can_id = EK304CAN_ID_ADDRESS_ACC_02;
+  Modulo2.can_dlc = 6;
 
   /*
   Modulo2.msg.data[0] = fAcx2;
@@ -128,11 +122,8 @@ void setup()
   */
 
   //SUSPENSAO
-  Suspensao.id.endOrigem = EK304CAN_ID_ADDRESS_ECU01;
-  Suspensao.id.endDestino = EK304CAN_ID_ADDRESS_GTW;
-  Suspensao.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;
-  Suspensao.msg.variant = 0x02;
-  Suspensao.msg.length = 2;
+  Suspensao.can_id = EK304CAN_ID_ADDRESS_SUSP_FRONT;
+  Suspensao.can_dlc = 2;
 
   /*
   Suspensao.msg.data[0] = posicaoSuspDireita;
@@ -259,12 +250,12 @@ void taskModu1(void)
     unsigned int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
     unsigned int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
 
-    Modulo1.msg.data[0] = fAcx1 & 0xFF;
-    Modulo1.msg.data[1] = fAcy1 & 0xFF;
-    Modulo1.msg.data[2] = fAcz1 & 0xFF;
-    Modulo1.msg.data[3] = fGyx1 & 0xFF;
-    Modulo1.msg.data[4] = fGyy1 & 0xFF;
-    Modulo1.msg.data[5] = fGyz1 & 0xFF;
+    Modulo1.data[0] = fAcx1 & 0xFF;
+    Modulo1.data[1] = fAcy1 & 0xFF;
+    Modulo1.data[2] = fAcz1 & 0xFF;
+    Modulo1.data[3] = fGyx1 & 0xFF;
+    Modulo1.data[4] = fGyy1 & 0xFF;
+    Modulo1.data[5] = fGyz1 & 0xFF;
 
     //PARA TESTE:
     Serial.print("AcX = ");
@@ -283,7 +274,7 @@ void taskModu1(void)
 
     tmrAcele1Overflow = false;
 
-    CAN_SendData(&mcp2515, &Modulo1); // envia os dados de um CAN_Frame na CAN
+    mcp2515.sendMessage(&Modulo1); // envia os dados de um CAN_Frame na CAN
   }
 }
 
@@ -333,12 +324,12 @@ void taskModu2(void)
     unsigned int fGyy2 = map(iiGyy2, 0, 500, 0, 250);
     unsigned int fGyz2 = map(iiGyz2, 0, 500, 0, 250);
 
-    Modulo2.msg.data[0] = fAcx2 & 0xFF;
-    Modulo2.msg.data[1] = fAcy2 & 0xFF;
-    Modulo2.msg.data[2] = fAcz2 & 0xFF;
-    Modulo2.msg.data[3] = fGyx2 & 0xFF;
-    Modulo2.msg.data[4] = fGyy2 & 0xFF;
-    Modulo2.msg.data[5] = fGyz2 & 0xFF;
+    Modulo2.data[0] = fAcx2 & 0xFF;
+    Modulo2.data[1] = fAcy2 & 0xFF;
+    Modulo2.data[2] = fAcz2 & 0xFF;
+    Modulo2.data[3] = fGyx2 & 0xFF;
+    Modulo2.data[4] = fGyy2 & 0xFF;
+    Modulo2.data[5] = fGyz2 & 0xFF;
 
     //PARA TESTE:
     Serial.print("Ac2X = ");
@@ -356,7 +347,7 @@ void taskModu2(void)
 
     tmrAcele2Overflow = false;
 
-    CAN_SendData(&mcp2515, &Modulo2); // envia os dados de um CAN_Frame na CAN
+    mcp2515.sendMessage(&Modulo2); // envia os dados de um CAN_Frame na CAN
   }
 }
 
@@ -370,18 +361,19 @@ void taskSusp(void)
     posicaoSuspDireita = (unsigned int)map(analogRead(PIN_SUSP_DIREITA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 255);
     posicaoSuspEsquerda = (unsigned int)map(analogRead(PIN_SUSP_ESQUERDA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 255);
 
-    Suspensao.msg.data[0] = (unsigned int)posicaoSuspDireita & 0xFF;  //Armazena o valor da leitura no primeiro byte do frame da suspensao
-    Suspensao.msg.data[1] = (unsigned int)posicaoSuspEsquerda & 0xFF; //Armazena o valor da leitura no segundo byte do frame da suspensao
+    Suspensao.data[0] = (unsigned int)posicaoSuspDireita & 0xFF;  //Armazena o valor da leitura no primeiro byte do frame da suspensao
+    Suspensao.data[1] = (unsigned int)posicaoSuspEsquerda & 0xFF; //Armazena o valor da leitura no segundo byte do frame da suspensao
 
     tmrSuspOverflow = false;
 
-    CAN_SendData(&mcp2515, &Suspensao); // envia os dados de um CAN_Frame na CAN
+    mcp2515.sendMessage(&Suspensao); // envia os dados de um CAN_Frame na CAN
   }
 }
 
 //ENVIO CAN
 void taskCAN(void)
 {
+  /*
   if (CAN_ReceiveData(&mcp2515, &Frameack) == MCP2515::ERROR_OK) // armazena em um CAN_Frame os dados recebidos da CAN
   {
     if (Frameack.id.tipo == EK304CAN_ID_TYPE_ACK)
@@ -393,4 +385,5 @@ void taskCAN(void)
       }
     }
   }
+  */
 }
