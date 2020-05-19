@@ -166,7 +166,6 @@ void setupSerial();   // configura a serial
 void setupCAN();      // configura o módulo CAN transciever e a respectiva tarefa
 void setupTimer();    // configura os timers do sistema (escalonador)
 void setupEncoder();  // configura a tarefa de leitura do encoder
-void setModuleInfo(); // calcula o número de sensores de cada módulo
 void setupKernel();   // configura e inicializa o Kernel
 void setupBlink();    // configura a tarefa de sinalização do sistema
 void setupErrors();   // configura a tarefa de
@@ -182,6 +181,7 @@ void isrEncoderSpin();  // trata interrupção do giro do encoder
 void isrEncoderClick(); // trata interrupção do clique do encoder
 
 void setAckTime(int origin);
+void sendSettingsSetup();
 
 /**************************************************************************************************************************************/
 /* DEFINIÇÃO DE TIPOS NÃO PRIMITIVOS                                                                                                   */
@@ -561,8 +561,7 @@ bool encSentidoHorario; // armazena o sentido de rotação do encoder (variável
 Encoder encoder; // cria uma instância do encoder
 
 // can
-struct can_frame canMsg; // armazena as informações do frame da CAN
-int sensorQttyEcu[15];
+can_frame canMsg; // armazena as informações do frame da CAN
 
 // serial
 String bufSerial; // buffer para transmissão na serial
@@ -592,13 +591,12 @@ void setup()
   setupCAN();      // configura CAN
   setupSDModule(); // configura o módulo SDCard
 
-  setupEncoder();  // configura Encoder
-  setupTimer();    // configura os timers e as respectivas interrupções
-  setupBlink();    // configura a arefa de blink
-  setModuleInfo(); // calcula o número de sensores pra cada módulo
-  setupErrors();   // configura as mensagens de erro do sistema
-  setupSensors();  // configura as informações dos sensores
-  setupInit();     // configura e inicializa o Kernel
+  setupEncoder(); // configura Encoder
+  setupTimer();   // configura os timers e as respectivas interrupções
+  setupBlink();   // configura a arefa de blink
+  setupErrors();  // configura as mensagens de erro do sistema
+  setupSensors(); // configura as informações dos sensores
+  setupInit();    // configura e inicializa o Kernel
 }
 
 void setupErrors()
@@ -1464,42 +1462,6 @@ void setupEncoder()
   intEncoderClockEnabled = true;
 }
 
-void setModuleInfo()
-{
-  for (size_t i = 0; i < SENSOR_QTTY_TOTAL; i++)
-  {
-    switch (sensors[i].origin)
-    {
-    case EK304CAN_ID_ADDRESS_GTW:
-      sensorQttyEcu[0]++;
-      break;
-
-    case EK304CAN_ID_ADDRESS_ECU01:
-      sensorQttyEcu[1]++;
-      break;
-
-    case EK304CAN_ID_ADDRESS_ECU02:
-      sensorQttyEcu[2]++;
-      break;
-
-    case EK304CAN_ID_ADDRESS_ECU03:
-      sensorQttyEcu[3]++;
-      break;
-
-    case EK304CAN_ID_ADDRESS_ECU04:
-      sensorQttyEcu[4]++;
-      break;
-
-    case EK304CAN_ID_ADDRESS_ECU15:
-      sensorQttyEcu[15]++;
-      break;
-
-    default:
-      break;
-    }
-  }
-}
-
 void setupTimer()
 {
   Timer1.initialize(TMR_BASE);
@@ -1540,7 +1502,7 @@ void setupSDModule()
   }
 }
 
-void sendSettings()
+void sendSettingsSetup()
 {
   //Manda as taxas de atualização via CAN
 
@@ -1552,20 +1514,20 @@ void sendSettings()
 
   //Configuração dos pacotes a serem enviados
 
-  setting_ecu01.can_id = EK304CAN_SETTING_ECU01;
-  setting_ecu01.can_dlc = sensorQttyEcu[1];
+  setting_ecu01.can_id = EK304CAN_ID_SETTING_ECU01;
+  setting_ecu01.can_dlc = EK304CAN_SETTING_DLC_ECU01;
 
-  setting_ecu02.can_id = EK304CAN_SETTING_ECU02;
-  setting_ecu02.can_dlc = sensorQttyEcu[2];
+  setting_ecu02.can_id = EK304CAN_ID_SETTING_ECU02;
+  setting_ecu02.can_dlc = EK304CAN_SETTING_DLC_ECU02;
 
-  setting_ecu03.can_id = EK304CAN_SETTING_ECU03;
-  setting_ecu03.can_dlc = sensorQttyEcu[3];
+  setting_ecu03.can_id = EK304CAN_ID_SETTING_ECU03;
+  setting_ecu03.can_dlc = EK304CAN_SETTING_DLC_ECU03;
 
-  setting_ecu04.can_id = EK304CAN_SETTING_ECU04;
-  setting_ecu04.can_dlc = sensorQttyEcu[4];
+  setting_ecu04.can_id = EK304CAN_ID_SETTING_ECU04;
+  setting_ecu04.can_dlc = EK304CAN_SETTING_DLC_ECU04;
 
-  setting_ecu15.can_id = EK304CAN_SETTING_ECU15;
-  setting_ecu15.can_dlc = sensorQttyEcu[15];
+  setting_ecu15.can_id = EK304CAN_ID_SETTING_ECU15;
+  setting_ecu15.can_dlc = EK304CAN_SETTING_DLC_ECU15;
 
   //Configurar conteúdo dos pacotes
 }

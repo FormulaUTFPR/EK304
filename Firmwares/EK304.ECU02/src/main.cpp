@@ -62,6 +62,10 @@ void taskScheduler(void);
 void taskBlink(void);
 void taskRPM(void);
 
+//Protótipos de funções
+
+void setupCAN();
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +74,30 @@ void taskRPM(void);
 bool tmrCANSendEnable = false;
 bool tmrCANSendOverflow = false;
 int tmrCANSendCount = 0;
+
+bool tmrCANSendAirTempEnable = false;
+bool tmrCANSendAirTempOverflow = false;
+int tmrCANSendAirTempCount = 0;
+
+bool tmrCANSendLambdaEnable = false;
+bool tmrCANSendLambdaOverflow = false;
+int tmrCANSendLambdaCount = 0;
+
+bool tmrCANSendMAPEnable = false;
+bool tmrCANSendMAPOverflow = false;
+int tmrCANSendMAPCount = 0;
+
+bool tmrCANSendRPMEnable = false;
+bool tmrCANSendRPMOverflow = false;
+int tmrCANSendRPMCount = 0;
+
+bool tmrCANSendTPSEnable = false;
+bool tmrCANSendTPSOverflow = false;
+int tmrCANSendTPSCount = 0;
+
+bool tmrCANSendWaterTempEnable = false;
+bool tmrCANSendWaterTempOverflow = false;
+int tmrCANSendWaterTempCount = 0;
 
 bool tmrBlinkEnable = false;
 bool tmrBlinkOverflow = false;
@@ -87,8 +115,13 @@ int tmrRotacaoCount = 0;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //CAN
-CAN_Frame frame;
-CAN_Frame frameRe;
+can_frame can_AirTemp;
+can_frame can_lambda;
+can_frame can_MAP;
+can_frame can_RPM;
+can_frame can_TPS;
+can_frame can_WaterTemp;
+
 MCP2515 mcp2515(CAN_CS);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -100,6 +133,12 @@ MCP2515 mcp2515(CAN_CS);
 #define TMR_CANSEND 1000000
 #define TMR_BLINK 100000
 #define TMR_ANALOGICO 100000
+#define TMR_AIR_TEMP 100000
+#define TMR_LAMBDA 100000
+#define TMR_MAP 100000
+#define TMR_RPM 100000
+#define TMR_TPS 100000
+#define TMR_WATER_TEMP 100000
 
 //Outras variaveis globais
 
@@ -114,6 +153,11 @@ void setup()
 {
     Serial.begin(9600);
     //CAN
+
+    setupCAN();
+
+    /*
+
     frame.id.endOrigem = EK304CAN_ID_ADDRESS_THIS;
     frame.id.endDestino = EK304CAN_ID_ADDRESS_GTW;
     frame.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;
@@ -127,6 +171,8 @@ void setup()
     frame.msg.data[3] = TempAG & 0xFF;
     frame.msg.data[4] = TempAR & 0xFF;
     frame.msg.data[5] = RPM & 0xFF;
+
+    */
 
     pinMode(LED_CPU, OUTPUT);
     pinMode(PIN_RPM, INPUT_PULLUP);
@@ -172,7 +218,7 @@ void taskRPM(void)
 
         media = media / CONST_DIV_RPM;
 
-        frame.msg.data[5] = media;
+        can_RPM.data[0] = media;
 
         contador = 0;            //faz o contador voltar para 1
         tempoInicial = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
@@ -221,11 +267,11 @@ void taskSensoresAnalogicos(void)
         TempAG = (-1 / 0.038) * log((ValorLido[3] * 1000) / (7656.8 * (5 - ValorLido[3]))); //Converte para °C
         TempAR = (-1 / 0.04) * log((ValorLido[4] * 1000) / (7021 * (5 - ValorLido[4])));    //Converte para °C
         //Atribuição dos valores convertidos no pacote da CAN
-        frame.msg.data[0] = ValorPre;
-        frame.msg.data[1] = FatorLambda;
-        frame.msg.data[2] = ValorTPS;
-        frame.msg.data[3] = TempAG;
-        frame.msg.data[4] = TempAR;
+        can_MAP.data[0] = ValorPre;
+        can_lambda.data[0] = FatorLambda;
+        can_TPS.data[0] = ValorTPS;
+        can_WaterTemp.data[0] = TempAG;
+        can_AirTemp.data[0] = TempAR;
 
         tmrSensoresAnalogicosOverflow = false;
     }
@@ -241,6 +287,7 @@ void taskRotacao(void)
 
 void taskCANSend(void)
 {
+    /*
     if (CAN_ReceiveData(&mcp2515, &frameRe) == MCP2515::ERROR_OK)
     {
         if (frameRe.id.tipo == EK304CAN_ID_TYPE_ACK) //envia pacote do tipo ACK para o Gateway
@@ -252,10 +299,13 @@ void taskCANSend(void)
             }
         }
     }
-    if (tmrCANSendOverflow)
+*/
+
+    if (tmrCANSendRPMOverflow)
     {
-        CAN_SendData(&mcp2515, &frame);
-        tmrCANSendOverflow = false;
+
+        mcp2515.sendMessage(&can_RPM);
+        tmrCANSendRPMOverflow = false;
     }
 }
 
@@ -280,6 +330,67 @@ void taskScheduler(void)
             tmrSensoresAnalogicosOverflow = true;
         }
     }
+
+    if (tmrCANSendAirTempEnable)
+    {
+        tmrCANSendAirTempCount++;
+        if (tmrCANSendAirTempCount >= TMR_AIR_TEMP / TMR_BASE)
+        {
+            tmrCANSendAirTempCount = 0;
+            tmrCANSendAirTempOverflow = true;
+        }
+    }
+
+    if (tmrCANSendLambdaEnable)
+    {
+        tmrCANSendLambdaCount++;
+        if (tmrCANSendLambdaCount >= TMR_LAMBDA / TMR_BASE)
+        {
+            tmrCANSendLambdaCount = 0;
+            tmrCANSendLambdaOverflow = true;
+        }
+    }
+
+    if (tmrCANSendMAPEnable)
+    {
+        tmrCANSendMAPCount++;
+        if (tmrCANSendMAPCount >= TMR_MAP / TMR_BASE)
+        {
+            tmrCANSendMAPCount = 0;
+            tmrCANSendMAPOverflow = true;
+        }
+    }
+
+    if (tmrCANSendRPMEnable)
+    {
+        tmrCANSendRPMCount++;
+        if (tmrCANSendRPMCount >= TMR_RPM / TMR_BASE)
+        {
+            tmrCANSendRPMCount = 0;
+            tmrCANSendRPMOverflow = true;
+        }
+    }
+
+    if (tmrCANSendTPSEnable)
+    {
+        tmrCANSendTPSCount++;
+        if (tmrCANSendTPSCount >= TMR_TPS / TMR_BASE)
+        {
+            tmrCANSendTPSCount = 0;
+            tmrCANSendTPSOverflow = true;
+        }
+    }
+
+    if (tmrCANSendWaterTempEnable)
+    {
+        tmrCANSendWaterTempCount++;
+        if (tmrCANSendWaterTempCount >= TMR_WATER_TEMP / TMR_BASE)
+        {
+            tmrCANSendWaterTempCount = 0;
+            tmrCANSendWaterTempOverflow = true;
+        }
+    }
+
     if (tmrBlinkEnable)
     {
         tmrBlinkCount++;
@@ -299,4 +410,31 @@ void taskBlink(void)
         tmrBlinkOverflow = false;
         tmrBlinkEnable = false;
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//Funções
+
+void setupCAN()
+{
+
+    can_AirTemp.can_id = EK304CAN_ID_ADDRESS_AIR_TEMP;
+    can_AirTemp.can_dlc = 1;
+
+    can_lambda.can_id = EK304CAN_ID_ADDRESS_LAMBA;
+    can_lambda.can_dlc = 1;
+
+    can_MAP.can_id = EK304CAN_ID_ADDRESS_MAP;
+    can_MAP.can_dlc = 2;
+
+    can_RPM.can_id = EK304CAN_ID_ADDRESS_RPM;
+    can_RPM.can_dlc = 1;
+
+    can_TPS.can_id = EK304CAN_ID_ADDRESS_TPS;
+    can_TPS.can_dlc = 1;
+
+    can_WaterTemp.can_id = EK304CAN_ID_ADDRESS_WATER_TEMPERATURE;
+    can_WaterTemp.can_dlc = 1;
 }

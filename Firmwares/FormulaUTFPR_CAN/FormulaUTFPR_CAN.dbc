@@ -36,6 +36,14 @@ BS_:
 BU_: Gateway RearData_Module04 FrontData_Module01 MEGA_CLONE_Module02 EngineDataExtra_Module03
 
 
+BO_ 1796 CAN_Settings_ECU04: 8 Vector__XXX
+
+BO_ 1795 CAN_Settings_ECU03: 8 Vector__XXX
+
+BO_ 1794 CAN_Settings_ECU02: 8 Vector__XXX
+
+BO_ 1793 CAN_Settings_ECU01: 8 Vector__XXX
+
 BO_ 19 MAP: 2 MEGA_CLONE_Module02
  SG_ MAP : 0|10@1+ (250,0) [0|255750] "Pa"  Gateway
 
