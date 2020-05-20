@@ -33,7 +33,7 @@ NS_ :
 
 BS_:
 
-BU_: Gateway RearData_Module04 FrontData_Module01 MEGA_CLONE_Module02 EngineDataExtra_Module03
+BU_: Gateway RearData_Module04 FrontData_Module01 MegaSniffer_Module02 EngineDataExtra_Module03
 
 
 BO_ 1796 CAN_Settings_ECU04: 8 Vector__XXX
@@ -44,20 +44,20 @@ BO_ 1794 CAN_Settings_ECU02: 8 Vector__XXX
 
 BO_ 1793 CAN_Settings_ECU01: 8 Vector__XXX
 
-BO_ 19 MAP: 2 MEGA_CLONE_Module02
+BO_ 19 MAP: 2 MegaSniffer_Module02
  SG_ MAP : 0|10@1+ (250,0) [0|255750] "Pa"  Gateway
 
 BO_ 18 SuspFront: 4 FrontData_Module01
  SG_ SuspFrontRight : 16|10@1+ (1,0) [0|0] ""  Gateway
  SG_ SuspFrontLeft : 0|10@1+ (0.088,0) [0|90.024] "deg"  Gateway
 
-BO_ 17 TPS: 1 MEGA_CLONE_Module02
+BO_ 17 TPS: 1 MegaSniffer_Module02
  SG_ TPS : 0|8@1+ (1,0) [0|255] "%"  Gateway
 
-BO_ 16 WaterTemp: 1 MEGA_CLONE_Module02
+BO_ 16 WaterTemp: 1 MegaSniffer_Module02
  SG_ WaterTemp : 0|8@1+ (1,0) [0|255] "degC"  Gateway
 
-BO_ 15 AirTemp: 1 MEGA_CLONE_Module02
+BO_ 15 AirTemp: 1 MegaSniffer_Module02
  SG_ AirTemp : 0|8@1+ (1,0) [0|255] "degC"  Gateway
 
 BO_ 14 Speed: 1 RearData_Module04
@@ -80,10 +80,10 @@ BO_ 9 Temperature: 8 EngineDataExtra_Module03
 BO_ 8 GearPosition: 1 EngineDataExtra_Module03
  SG_ GearPosition : 0|8@1+ (1,0) [0|6] "Gear"  Gateway
 
-BO_ 7 Lambda: 1 MEGA_CLONE_Module02
+BO_ 7 Lambda: 1 MegaSniffer_Module02
  SG_ Lambda : 0|8@1+ (0.01,0) [0|2.55] ""  Gateway
 
-BO_ 0 RPM: 1 MEGA_CLONE_Module02
+BO_ 0 RPM: 1 MegaSniffer_Module02
  SG_ RPM : 0|8@1+ (51,0) [0|13005] "RPM"  Gateway
 
 BO_ 5 Acc03: 6 RearData_Module04

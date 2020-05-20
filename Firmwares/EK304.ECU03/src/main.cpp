@@ -66,6 +66,7 @@ void taskBlink(void);
 /* PROTÓTIPO DAS FUNÇÕES                                                                                                              */
 /**************************************************************************************************************************************/
 
+void setupCAN();
 int gearSelect();
 float turboPressure();
 
@@ -75,6 +76,8 @@ float turboPressure();
 
 CAN_Frame frame;
 CAN_Frame frameRe;
+
+can_frame can_gear;
 
 /**************************************************************************************************************************************/
 /* DECLARACAO DE VARIAVEIS GLOBAIS                                                                                                   */
@@ -106,6 +109,9 @@ MCP2515 mcp2515(CAN_CS); //Pino 10 é o Slave
 
 void setup()
 {
+
+  setupCAN();
+
   frame.id.endDestino = EK304CAN_ID_ADDRESS_GTW;
   frame.id.endOrigem = EK304CAN_ID_ADDRESS_THIS;
   frame.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;
@@ -135,6 +141,9 @@ void setup()
   pinMode(INDICADOR_DA_SEXTA_MARCHA, INPUT_PULLUP);
 
   tmrCansendEnable = true;
+  tmrIndicadorDaMarchaEnable = true;
+  tmrPressaoDoArEnable = false;
+  tmrTemperaturaDoArEnable = false;
 
   Timer1.initialize(TMR_BASE);
   Timer1.attachInterrupt(taskScheduler);
@@ -155,6 +164,7 @@ void loop()
 //Comunicação com a CAN
 void taskCanCommunication(void)
 {
+  /*
   if (CAN_ReceiveData(&mcp2515, &frameRe) == MCP2515::ERROR_OK)
   {
     if (frameRe.id.tipo == EK304CAN_ID_TYPE_ACK) //envia pacote do tipo ACK para o Gateway
@@ -166,12 +176,14 @@ void taskCanCommunication(void)
       }
     }
   }
-
+  */
+  /*
   if (tmrCansendOverflow)
   {
     CAN_SendData(&mcp2515, &frame);
     tmrCansendOverflow = false;
   }
+  */
 }
 
 //Faz leitura do sensor da tempertarura do ar
@@ -232,9 +244,11 @@ void taskIndicadorDaMarcha(void)
 
     gearSent = gear & 0xFF;
 
-    frame.msg.data[4] = gearSent;
+    can_gear.data[0] = gearSent;
 
     tmrIndicadorDaMarchaOverflow = false;
+
+    mcp2515.sendMessage(&can_gear);
   }
 }
 
@@ -245,6 +259,12 @@ void taskIndicadorDaMarcha(void)
 /**************************************************************************************************************************************/
 /* FUNÇÕES GERAIS                                                                                                                     */
 /************************************************************************************************* *************************************/
+
+void setupCAN()
+{
+  can_gear.can_id = EK304CAN_ID_ADDRESS_GEAR_POSITION;
+  can_gear.can_dlc = 1;
+}
 
 int gearSelect()
 {

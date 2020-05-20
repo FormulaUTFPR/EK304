@@ -133,12 +133,12 @@ MCP2515 mcp2515(CAN_CS);
 #define TMR_CANSEND 1000000
 #define TMR_BLINK 100000
 #define TMR_ANALOGICO 100000
-#define TMR_AIR_TEMP 100000
-#define TMR_LAMBDA 100000
-#define TMR_MAP 100000
-#define TMR_RPM 100000
-#define TMR_TPS 100000
-#define TMR_WATER_TEMP 100000
+#define TMR_AIR_TEMP 1000000
+#define TMR_LAMBDA 50000
+#define TMR_MAP 50000
+#define TMR_RPM 20000
+#define TMR_TPS 50000
+#define TMR_WATER_TEMP 1000000
 
 //Outras variaveis globais
 
@@ -191,7 +191,7 @@ void setup()
 
     tmrBlinkEnable = true;
     tmrCANSendEnable = true;
-    tmrSensoresAnalogicosEnable = true;
+    tmrSensoresAnalogicosEnable = false;
     tmrRotacaoEnable = true;
 }
 
@@ -233,6 +233,7 @@ void taskRPM(void)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //Tasks
+
 void taskSensoresAnalogicos(void)
 {
 
@@ -301,11 +302,68 @@ void taskCANSend(void)
     }
 */
 
+    if (tmrCANSendAirTempOverflow)
+    {
+        int AirTempReadValue = analogRead(SensorTEMPAR);
+        can_AirTemp.data[0] = (-1 / 0.04) * log((AirTempReadValue * 1000) / (7021 * (5 - AirTempReadValue))); //Converte para KPA
+
+        mcp2515.sendMessage(&can_AirTemp);
+        tmrCANSendAirTempOverflow = false;
+    }
+
+    if (tmrCANSendLambdaOverflow)
+    {
+        int LambdaReadValue = analogRead(SensorSON);
+        can_lambda.data[0] = (((LambdaReadValue - 0.2) * 0.65 / 4.6) + 0.65) * 100; //valor X100 para torna-lo inteiro //Converte a para fator Lambda
+
+        mcp2515.sendMessage(&can_lambda);
+        tmrCANSendLambdaOverflow = false;
+    }
+
+    if (tmrCANSendMAPOverflow)
+    {
+        int MAPReadValue = analogRead(SensorMAP);
+        int MAPvalue = MAPReadValue * 5 / 1023;
+
+        can_MAP.data[0] = (MAPvalue - 0.204) * 0.018819;
+
+        mcp2515.sendMessage(&can_MAP);
+        tmrCANSendMAPOverflow = false;
+    }
+
     if (tmrCANSendRPMOverflow)
     {
-
         mcp2515.sendMessage(&can_RPM);
         tmrCANSendRPMOverflow = false;
+    }
+
+    if (tmrCANSendTPSOverflow)
+    {
+        int TPSReadValue = analogRead(SensorTPS);
+        can_TPS.data[0] = (TPSReadValue - 0.23) * (100 / 3.75); //Converte para Porcentagem
+        if (TPSReadValue < 0)                                   //
+        {                                                       //
+            can_TPS.data[0] = 0;                                //
+        }                                                       //
+        else                                                    //
+        {                                                       // Impede do valor em porcentagem ser negativo e maior que 100
+            if (TPSReadValue > 100)                             //
+            {                                                   //
+                can_TPS.data[0] = 100;                          //
+            }                                                   //
+        }
+
+        mcp2515.sendMessage(&can_TPS);
+        tmrCANSendTPSOverflow = false;
+    }
+
+    if (tmrCANSendWaterTempOverflow)
+    {
+        int WaterTempReadValue = analogRead(SensorTEMPAG);
+        can_WaterTemp.data[0] = (-1 / 0.038) * log((WaterTempReadValue * 1000) / (7656.8 * (5 - WaterTempReadValue))); //Converte para °C
+
+        mcp2515.sendMessage(&can_WaterTemp);
+        tmrCANSendWaterTempOverflow = false;
     }
 }
 
