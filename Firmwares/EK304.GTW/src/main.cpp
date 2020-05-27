@@ -8,7 +8,7 @@
 /**************************************************************************************************************************************/
 /* CONFIGURAÇÕES DO PROJETO                                                                                                           */
 /**************************************************************************************************************************************/
-#define FIRMWARE_VERSION "v0.0.1"
+#define FIRMWARE_VERSION "v0.1.2"
 
 #define TMR_BASE 100000
 #define TMR_BLINK 1000000
@@ -81,11 +81,11 @@
 
 // habilitação das ecus
 
-#define EK304CAN_ECU01_ENABLED false
-#define EK304CAN_ECU02_ENABLED false
-#define EK304CAN_ECU03_ENABLED false
-#define EK304CAN_ECU04_ENABLED false
-#define EK304CAN_ECU15_ENABLED true
+#define EK304CAN_ECU01_ENABLED true
+#define EK304CAN_ECU02_ENABLED true
+#define EK304CAN_ECU03_ENABLED true
+#define EK304CAN_ECU04_ENABLED true
+#define EK304CAN_ECU15_ENABLED false
 
 /**************************************************************************************************************************************/
 /* DEFINIÇÃO DE PINOS                                                                                                                 */
@@ -118,6 +118,11 @@
 
 // pinos utilizados como entrada analógica
 #define V_BAT A0 // define V_BAT no pino A0
+
+// pinos para os LEDs
+
+#define LED_RUN 22
+#define LED_ERR 23
 
 /**************************************************************************************************************************************/
 /* IMPORTAÇÃO DE BIBLIOTECAS                                                                                                          */
@@ -482,9 +487,11 @@ bool flagEncoderClockwiseSpin = false; // sinaliza o sentido de giro o encoder (
 bool flagFreezeDisplay = false; // sinaliza quando o display deve estar congelado
 bool flagUpdateDisplay = false; // sinaliza quando o display quando o display deve ser atualizado
 
-bool flagErrorsFound = false;     // sinaliza quando houve(m) falha(s) no sistema'
+bool flagErrorsFound = false;     // sinaliza quando houve(m) falha(s) no sistema
 bool flagErrorSDCardInit = false; // sinaliza quando há erro na inicialização do cartão SD
 bool flagErrorSDCardFull = false; // sinaliza quando o cartão SD está ficando cheio ou está cheio
+
+bool flagErrorPacketID = false; // sinaliza quando houve(m) falha(s) no sistema
 
 bool intEncoderClockEnabled = true;  // habilita a interrupção no clock do encoder
 bool intEncoderButtonEnabled = true; // habilita a interrupção no botão do encoder
@@ -562,6 +569,7 @@ Encoder encoder; // cria uma instância do encoder
 
 // can
 can_frame canMsg; // armazena as informações do frame da CAN
+can_frame frame;
 
 // serial
 String bufSerial; // buffer para transmissão na serial
@@ -573,8 +581,13 @@ float ValorVBat = 0.0;
 /**************************************************************************************************************************************/
 /* CONFIGURAÇÃO DOS PERIFÉRICOS                                                                                                       */
 /**************************************************************************************************************************************/
-// cria instância do display de LCD (configura pinos)
-U8GLIB_ST7920_128X64_1X u8g(LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7, LCD_EN, LCD_RS, LCD_RW, LCD_RE);
+
+// cria instância do display de LCD (configura pinos) https://github.com/olikraus/u8glib/wiki/device#st7920-128x64
+// U8GLIB_ST7920_128X64_1X(sck, mosi, cs [, reset])
+
+//U8GLIB_ST7920_128X64_1X u8g(LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7, LCD_EN, LCD_RS, LCD_RW, LCD_RE);
+
+U8GLIB_ST7920_128X64_1X u8g(LCD_EN, LCD_RW, LCD_RS); //SPI-
 
 // cria uma instância do módulo transciever CAN (configura pino CS)
 MCP2515 mcp2515(SPI_CS_CAN);
@@ -585,6 +598,8 @@ EK304SD sdCard;
 // Rotina principal de configuração
 void setup()
 {
+  pinMode(LED_ERR, OUTPUT);
+
   setupDisplay();  // configura display
   setupSerial();   // configura serial
   setupADC();      // confgura o conversor A/D
@@ -612,8 +627,9 @@ void setupErrors()
   sysErrors[ERROR_CAN_ECU03_ID] = Error("CAN_ECU03_FAILURE", "ECU03 failure", ERROR_CAN_ECU03_ID, ERROR_CAN_ECU03_CODE);
   sysErrors[ERROR_CAN_ECU04_ID] = Error("CAN_ECU04_FAILURE", "ECU04 failure", ERROR_CAN_ECU04_ID, ERROR_CAN_ECU04_CODE);
   sysErrors[ERROR_CAN_ECU15_ID] = Error("CAN_ECU15_FAILURE", "ECU15 failure", ERROR_CAN_ECU15_ID, ERROR_CAN_ECU15_CODE);
-  sysErrors[ERROR_SD_CARD_INIT] = Error("SD_CARD_FAILURE", "SD Card Initialization failure", ERROR_SD_CARD_INIT, ERROR_SD_CARD_INIT);
+  sysErrors[ERROR_SD_CARD_INIT] = Error("SD_CARD_FAILURE", "SD Card Init. failure", ERROR_SD_CARD_INIT, ERROR_SD_CARD_INIT);
   sysErrors[ERROR_SD_CARD_FULL] = Error("SD_CARD_FULL", "SD Card write error", ERROR_SD_CARD_FULL, ERROR_SD_CARD_FULL);
+  sysErrors[ERROR_ID_PACKET] = Error("ERROR_ID_PACKET", "CAN ID error", ERROR_ID_PACKET, ERROR_ID_PACKET);
 
   tmrGPSTimeoutEnabled = true;
   tmrErrorMsgsEnabled = true;
@@ -898,6 +914,7 @@ void taskErrorsMonitor()
   }
   else
     sysErrors[ERROR_CAN_ECU01_ID].status = false;
+
   if (EK304CAN_ECU02_ENABLED && ((millis() - tmpRecebimentoAckECU02) >= TMR_CANCHECKERROR))
   {
     sysErrors[ERROR_CAN_ECU02_ID].status = true;
@@ -913,6 +930,7 @@ void taskErrorsMonitor()
   }
   else
     sysErrors[ERROR_CAN_ECU03_ID].status = false;
+
   if (EK304CAN_ECU04_ENABLED && ((millis() - tmpRecebimentoAckECU04) >= TMR_CANCHECKERROR))
   {
     sysErrors[ERROR_CAN_ECU04_ID].status = true;
@@ -920,6 +938,7 @@ void taskErrorsMonitor()
   }
   else
     sysErrors[ERROR_CAN_ECU04_ID].status = false;
+
   if (EK304CAN_ECU15_ENABLED && ((millis() - tmpRecebimentoAckECU15) >= TMR_CANCHECKERROR))
   {
     sysErrors[ERROR_CAN_ECU15_ID].status = true;
@@ -937,6 +956,7 @@ void taskErrorsMonitor()
   }
   else
     sysErrors[ERROR_SD_CARD_INIT].status = false;
+
   if (flagErrorSDCardFull)
   {
     sysErrors[ERROR_SD_CARD_FULL].status = true;
@@ -945,13 +965,22 @@ void taskErrorsMonitor()
   else
     sysErrors[ERROR_SD_CARD_FULL].status = false;
 
+  if (flagErrorPacketID)
+  {
+    sysErrors[ERROR_ID_PACKET].status = true;
+    listErrors.add(sysErrors[ERROR_ID_PACKET].ToStringCenter(ERROR_MSGSIZE));
+    flagErrorPacketID = false;
+  }
+  else
+    sysErrors[ERROR_ID_PACKET].status = false;
+
   // algoritmo para mudar mensagem de erro na tela
   cntErrors = listErrors.size();
   sMessages = listErrors;
   if (cntErrors > 0)
   {
     flagErrorsFound = true;
-
+    digitalWrite(LED_ERR, HIGH);
     if (tmrErrorMsgsOverflow)
     {
       sMessages[selectedError].toCharArray(cErrorMsg, ERROR_MSGSIZE);
@@ -964,7 +993,10 @@ void taskErrorsMonitor()
     }
   }
   else
+  {
     flagErrorsFound = false;
+    digitalWrite(LED_ERR, LOW);
+  }
 }
 
 void taskDisplay()
@@ -1252,46 +1284,49 @@ void taskBlink()
 
 void taskCAN()
 {
-  can_frame frame;
   if (mcp2515.readMessage(&frame) == MCP2515::ERROR_OK)
   {
     mcp2515.readMessage(&frame);
 
     switch (frame.can_id)
     {
-    case 0x00:
+    case EK304CAN_ID_RPM:
       //RPM
       sensors[SENSOR_ROTATION_ID].valor = frame.data[0] * CONST_RPM;
+
       setAckTime(sensors[SENSOR_ROTATION_ID].origin);
       break;
-    case 0x01:
+    case EK304CAN_ID_ACC_01:
       //Acelerômetro 1
       break;
-    case 0x03:
+    case EK304CAN_ID_ACC_02:
       //Acelerômetro 2
       break;
-    case 0x05:
+    case EK304CAN_ID_ACC_03:
       //Acelerômetro 3
       break;
-    case 0x07:
+    case EK304CAN_ID_LAMBA:
       //Lambda
       sensors[SENSOR_LAMBDA_ID].valor = frame.data[0];
+
       setAckTime(sensors[SENSOR_LAMBDA_ID].origin);
       break;
-    case 0x08:
+    case EK304CAN_ID_GEAR_POSITION:
       //Gear Position
       sensors[SENSOR_GEAR_ID].valor = frame.data[4];
+
       setAckTime(sensors[SENSOR_GEAR_ID].origin);
       break;
-    case 0x09:
+    case EK304CAN_ID_TEMPERATURE:
       //Temperature
       sensors[SENSOR_MOTOR_TEMPERATURE_ID].valor = frame.data[1];
+
       setAckTime(sensors[SENSOR_MOTOR_TEMPERATURE_ID].origin);
       break;
-    case 0x0A:
+    case EK304CAN_ID_PRESSURE:
       //Pressure
       break;
-    case 0x0B:
+    case EK304CAN_ID_SUSP_REAR:
       //SuspRear
       sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = frame.data[1] / (2.8 + 1 / 30);
       sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor << 8;
@@ -1299,52 +1334,65 @@ void taskCAN()
       sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor = frame.data[3] / (2.8 + 1 / 30);
       sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor = sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor << 8;
       sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor += frame.data[2] / (2.8 + 1 / 30);
+
       setAckTime(sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].origin);
       break;
-    case 0x0C:
+    case EK304CAN_ID_OIL_PRESSURE:
       //OilPressure
       sensors[SENSOR_OIL_PRESSURE_ID].valor = frame.data[2];
+
       setAckTime(sensors[SENSOR_OIL_PRESSURE_ID].origin);
       break;
-    case 0x0D:
+    case EK304CAN_ID_OIL_TEMPERATURE:
       //OilTemp
       sensors[SENSOR_OIL_TEMPERATURE_ID].valor = frame.data[2];
+
       setAckTime(sensors[SENSOR_OIL_TEMPERATURE_ID].origin);
       break;
-    case 0x0E:
+    case EK304CAN_ID_SPEED:
       //Speed
       sensors[SENSOR_SPEED_ID].valor = frame.data[0];
+
       setAckTime(sensors[SENSOR_SPEED_ID].origin);
       break;
-    case 0x0F:
+    case EK304CAN_ID_AIR_TEMP:
       //AirTemp
       sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].valor = frame.data[4];
+
       setAckTime(sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].origin);
       break;
-    case 0x10:
+    case EK304CAN_ID_WATER_TEMPERATURE:
       //WaterTemp
       sensors[SENSOR_WATER_TEMPERATURE_ID].valor = frame.data[3];
+
       setAckTime(sensors[SENSOR_WATER_TEMPERATURE_ID].origin);
       break;
-    case 0x11:
+    case EK304CAN_ID_TPS:
       //TPS
       sensors[SENSOR_TPS_ID].valor = frame.data[2];
+
       setAckTime(sensors[SENSOR_TPS_ID].origin);
       break;
-    case 0x12: //SuspFront
+    case EK304CAN_ID_SUSP_FRONT: //SuspFront
       sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = frame.data[1] / (2.8 + 1 / 30);
       sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor << 8;
       sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor += frame.data[0] / (2.8 + 1 / 30);
       sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor = frame.data[3] / (2.8 + 1 / 30);
       sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor = sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor << 8;
       sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor += frame.data[2] / (2.8 + 1 / 30);
+
       setAckTime(sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].origin);
 
       break;
-    case 0x13:
+    case EK304CAN_ID_MAP:
       //MAP
       sensors[SENSOR_MAP_ID].valor = frame.data[0];
+
       setAckTime(sensors[SENSOR_MAP_ID].origin);
+      break;
+
+    default:
+      flagErrorPacketID = true;
       break;
     }
 
@@ -1352,8 +1400,13 @@ void taskCAN()
 
     if (!sdCard.Write(STRING_FILE_NAME, ""))
     {
-      sysErrors[ERROR_SD_CARD_FULL].status = true;
+      flagErrorSDCardFull = true;
     }
+    else
+    {
+      flagErrorSDCardInit = false;
+    }
+
     sdCard.Write(STRING_FILE_NAME, ";");
     sdCard.Write(STRING_FILE_NAME, String(millis())); //Grava o tempo decorrido
     sdCard.Write(STRING_FILE_NAME, ";");
@@ -1369,16 +1422,16 @@ void taskCAN()
     }
     sdCard.Write(STRING_FILE_NAME, ";\r\n"); //Quebra a linha
 
+    Serial.print(frame.can_id, HEX);
     Serial.print(frame.can_dlc, HEX);
-    Serial.print(frame.can_dlc, HEX);
-
+    Serial.print(" ");
     for (int i = 0; i < frame.can_dlc; i++)
     {
       Serial.print(frame.data[i], HEX);
       Serial.print(" ");
     }
 
-    Serial.println();
+    Serial.println(";");
     /*    // Envia os pacotes de ACK
     if (tmrCanTestOverflow)
     {
@@ -1396,6 +1449,10 @@ void taskCAN()
       tmrCanTestOverflow = false;
     }  
     */
+  }
+  else if (mcp2515.readMessage(&frame) == MCP2515::ERROR_FAIL)
+  {
+    Serial.println("CAN ERROR");
   }
 }
 
@@ -1444,7 +1501,7 @@ void setupCAN()
 {
   SPI.begin();
   CAN_Init(&mcp2515, CAN_1000KBPS);
-  tmrCanTestEnabled = true;
+  tmrCanTestEnabled = false;
 }
 
 // configura módulo encoder
@@ -1483,22 +1540,22 @@ void setupSDModule()
   if (!sdCard.Init(SPI_CS_SD))
   {
     Serial.println("Erro ao iniciar");
-    sysErrors[ERROR_SD_CARD_INIT].status = true;
+    flagErrorSDCardInit = true;
   }
   if (!sdCard.Write("xx.txt", "asoksaosak;"))
   {
     Serial.println("Erro ao escrever");
-    sysErrors[ERROR_SD_CARD_INIT].status = true;
+    flagErrorSDCardInit = true;
   }
   if (!sdCard.Read("xx.txt"))
   {
     Serial.println("Erro ao ler");
-    sysErrors[ERROR_SD_CARD_INIT].status = true;
+    flagErrorSDCardInit = true;
   }
   if (!sdCard.Remove("xx.txt"))
   {
     Serial.println("Erro ao apagar");
-    sysErrors[ERROR_SD_CARD_INIT].status = true;
+    flagErrorSDCardInit = true;
   }
 }
 
@@ -1701,19 +1758,19 @@ void setAckTime(int origin)
 {
   switch (origin)
   {
-  case 0x01:
+  case EK304CAN_ID_ADDRESS_ECU01:
     tmpRecebimentoAckECU01 = millis();
     break;
-  case 0x02:
+  case EK304CAN_ID_ADDRESS_ECU02:
     tmpRecebimentoAckECU02 = millis();
     break;
-  case 0x03:
+  case EK304CAN_ID_ADDRESS_ECU03:
     tmpRecebimentoAckECU03 = millis();
     break;
-  case 0x04:
+  case EK304CAN_ID_ADDRESS_ECU04:
     tmpRecebimentoAckECU04 = millis();
     break;
-  case 0x0F:
+  case EK304CAN_ID_ADDRESS_ECU15:
     tmpRecebimentoAckECU15 = millis();
     break;
 

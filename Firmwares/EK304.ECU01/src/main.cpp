@@ -32,11 +32,14 @@ void taskBlink(void);
 //VARIAVEIS GLOBAIS
 #define VALOR_MIN_LEITURA_SUSP 126 //Minimo valor de leitura na porta analogica
 #define VALOR_MAX_LEITURA_SUSP 876 //Maximo valor de leitura na porta analogica
-#define TMR_BASE 100000            //Clock base para os multiplicadores
-#define TMR_CANSEND 500000         //Timer para envios da can
-#define TMR_SUSP 100000            //Timer para gravar dados da suspensão
-#define TMR_ACELE1 100000          //Timer para gravar e enviar dados do acelerômetro 1
-#define TMR_ACELE2 100000          //Timer para gravar e enviar dados do acelerômetro 2
+
+// TIMERS
+
+#define TMR_BASE 100000    //Clock base para os multiplicadores
+#define TMR_CANSEND 500000 //Timer para envios da can
+#define TMR_SUSP 100000    //Timer para gravar dados da suspensão
+#define TMR_ACELE1 100000  //Timer para gravar e enviar dados do acelerômetro 1
+#define TMR_ACELE2 100000  //Timer para gravar e enviar dados do acelerômetro 2
 
 //Variáveis Globais
 
@@ -256,7 +259,7 @@ void taskModu1(void)
     Modulo1.data[3] = fGyx1 & 0xFF;
     Modulo1.data[4] = fGyy1 & 0xFF;
     Modulo1.data[5] = fGyz1 & 0xFF;
-
+    /*
     //PARA TESTE:
     Serial.print("AcX = ");
     Serial.print(fAcx1);
@@ -271,7 +274,7 @@ void taskModu1(void)
     Serial.print("   GyZ = ");
     Serial.println(fGyz1);
     Serial.println(" ");
-
+*/
     tmrAcele1Overflow = false;
 
     mcp2515.sendMessage(&Modulo1); // envia os dados de um CAN_Frame na CAN
@@ -330,7 +333,7 @@ void taskModu2(void)
     Modulo2.data[3] = fGyx2 & 0xFF;
     Modulo2.data[4] = fGyy2 & 0xFF;
     Modulo2.data[5] = fGyz2 & 0xFF;
-
+    /*
     //PARA TESTE:
     Serial.print("Ac2X = ");
     Serial.print(fAcx2);
@@ -344,7 +347,7 @@ void taskModu2(void)
     Serial.print(fGyy2);
     Serial.print("   Gy2Z = ");
     Serial.println(fGyz2);
-
+*/
     tmrAcele2Overflow = false;
 
     mcp2515.sendMessage(&Modulo2); // envia os dados de um CAN_Frame na CAN

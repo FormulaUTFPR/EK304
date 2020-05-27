@@ -46,9 +46,9 @@ const int MPU1 = 0x68; //Endereço é importante para pinagem
 //Overflow é pra chamar a função
 //Count é o contador para o overflow
 
-bool tmrCANSendEnable = false;
-bool tmrCANSendOverflow = false;
-int tmrCANSendCount = 0;
+bool tmrCANSendSpeedEnable = false;
+bool tmrCANSendSpeedOverflow = false;
+int tmrCANSendSpeedCount = 0;
 
 bool tmrTempEnable = false;
 bool tmrTempOverflow = false;
@@ -100,13 +100,13 @@ can_frame canSuspRear;
 #define MIN_PRES 0        //Valor min em bar
 #define MAX_PRES 10       //Valor máx em bar
 
-#define TMR_BASE 100000      //Temporizador base para o Timer1
-#define TMR_CANSEND 500000   //Chamar a função da CAN a cada 0,5 segundos
-#define TMR_TEMP 1000000     //Leitura da temperatura a cada 0,1 segundo
-#define TMR_PRESSURE 1000000 //Leitura da pressão a cada 0,1 segundo
-#define TMR_SUSP 1000000     //Leitura dos dados da suspensão 0,1 segundo
-#define TMR_ACC 1000000      //Leitura dos dados do acelerômetro a cada 0,1 segundo
-#define TMR_BLINK 100000     //Chamar a função para piscar o LED do módulo
+#define TMR_BASE 100000     //Temporizador base para o Timer1
+#define TMR_CANSEND 500000  //Chamar a função da CAN a cada 0,5 segundos
+#define TMR_TEMP 1000000    //Leitura da temperatura a cada 0,1 segundo
+#define TMR_PRESSURE 100000 //Leitura da pressão a cada 0,1 segundo
+#define TMR_SUSP 100000     //Leitura dos dados da suspensão 0,1 segundo
+#define TMR_ACC 1000000     //Leitura dos dados do acelerômetro a cada 0,1 segundo
+#define TMR_BLINK 100000    //Chamar a função para piscar o LED do módulo
 
 //Declaração de variaveis globais
 
@@ -122,6 +122,7 @@ MCP2515 mcp2515(CAN_CS);
 
 void setup()
 {
+  //Serial.begin(9600);
   //Serial.println("Começou o setup");
 
   setupInit(); //PinModes, inicializar outras coisas, entre outros
@@ -133,11 +134,11 @@ void setup()
 
   //Variaveis para ativação das tarefas
 
-  tmrCANSendEnable = true;
+  tmrCANSendSpeedEnable = false;
   tmrTempEnable = true;
-  tmrSuspEnable = true;
+  tmrSuspEnable = false;
   tmrPressureEnable = true;
-  tmrAccEnable = true;
+  tmrAccEnable = false;
 
   //Serial.println("Acabou o setup");
 
@@ -197,6 +198,8 @@ void taskTemp(void)
     //Checar se precisa alterar para enviar via CAN
 
     tmrTempOverflow = false; //Coloca a flag em falso novamente
+
+    tmrBlinkEnable = true;
   }
 }
 
@@ -218,6 +221,8 @@ void taskPressure(void)
     //Checar se precisa alterar o valor para a transmissão via CAN
 
     tmrPressureOverflow = false;
+
+    tmrBlinkEnable = true;
   }
 }
 
@@ -237,7 +242,11 @@ void taskSusp(void)
     canSuspRear.data[3] = sender2 & 0xFF << 8;
     canSuspRear.data[2] = sender2 & 0xFF;
 
+    mcp2515.sendMessage(&canSuspRear);
+
     tmrSuspOverflow = false;
+
+    tmrBlinkEnable = true;
   }
 }
 
@@ -256,13 +265,17 @@ void taskCAN(void)
     }
   }
   */
-  if (tmrCANSendOverflow) //Tirar essa parte depois da mudança dos ids da CAN
+  if (tmrCANSendSpeedOverflow) //Tirar essa parte depois da mudança dos ids da CAN
   {
     //Envios
 
     //CAN_SendData(&mcp2515, &canOTHER);
 
-    tmrCANSendOverflow = false;
+    mcp2515.sendMessage(&canSpeed);
+
+    tmrCANSendSpeedOverflow = false;
+
+    tmrBlinkEnable = true;
   }
 }
 
@@ -331,6 +344,8 @@ void taskAcc(void) //Tarefa do acelerometro
     */
 
     tmrAccOverflow = false;
+
+    tmrBlinkEnable = true;
   }
 }
 
@@ -357,10 +372,12 @@ void setupInit()
 
 void setupCAN()
 {
+
   digitalWrite(LED_CPU, HIGH); //Deixa o LED ligado enquanto está settando a CAN
   CAN_Init(&mcp2515, CAN_1000KBPS);
   digitalWrite(LED_CPU, LOW); //Desliga o LED
-                              /*
+
+  /*
   canOTHER.id.endOrigem = EK304CAN_ID_ADDRESS_THIS; //Endereço de origem do módulo 4
   canOTHER.id.endDestino = EK304CAN_ID_ADDRESS_GTW; //Para o módulo 0
   canOTHER.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;   //Tipo de dado "dados"
@@ -375,7 +392,7 @@ void setupCAN()
   canACEL.can_id = EK304CAN_ID_ADDRESS_ACC_03; //Define o id como o do acelerômetro 3 da CAN
   canACEL.can_dlc = 6;                         //Tamanho do pacote
 
-  canOilPressure.can_id = EK304CAN_ID_ADDRESS_OIL_PRESSURE;
+  canOilPressure.can_id = EK304CAN_ID_ADDRESS_SPEED;
   canOilPressure.can_dlc = 1;
 
   canOilTemp.can_id = EK304CAN_ID_ADDRESS_OIL_TEMPERATURE;
@@ -404,13 +421,13 @@ void setupACC()
 
 void taskScheduler(void) //Aqui comeca o escalonador
 {
-  if (tmrCANSendEnable)
+  if (tmrCANSendSpeedEnable)
   {
-    tmrCANSendCount++;                             //Incrementa o valor dessa variável todo ciclo
-    if (tmrCANSendCount >= TMR_CANSEND / TMR_BASE) //Checa se o valor estorou
+    tmrCANSendSpeedCount++;                             //Incrementa o valor dessa variável todo ciclo
+    if (tmrCANSendSpeedCount >= TMR_CANSEND / TMR_BASE) //Checa se o valor estorou
     {
-      tmrCANSendCount = 0;       //Volta o valor para 0
-      tmrCANSendOverflow = true; //Ativa o overflow para a tarefa ser ativada
+      tmrCANSendSpeedCount = 0;       //Volta o valor para 0
+      tmrCANSendSpeedOverflow = true; //Ativa o overflow para a tarefa ser ativada
     }
   }
 

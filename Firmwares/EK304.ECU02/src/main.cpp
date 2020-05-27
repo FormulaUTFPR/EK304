@@ -193,6 +193,13 @@ void setup()
     tmrCANSendEnable = true;
     tmrSensoresAnalogicosEnable = false;
     tmrRotacaoEnable = true;
+
+    tmrCANSendAirTempEnable = true;
+    tmrCANSendLambdaEnable = true;
+    tmrCANSendMAPEnable = true;
+    tmrCANSendRPMEnable = true;
+    tmrCANSendTPSEnable = true;
+    tmrCANSendWaterTempEnable = true;
 }
 
 void loop()
@@ -361,6 +368,8 @@ void taskCANSend(void)
     {
         int WaterTempReadValue = analogRead(SensorTEMPAG);
         can_WaterTemp.data[0] = (-1 / 0.038) * log((WaterTempReadValue * 1000) / (7656.8 * (5 - WaterTempReadValue))); //Converte para °C
+
+        Serial.println("watertemp");
 
         mcp2515.sendMessage(&can_WaterTemp);
         tmrCANSendWaterTempOverflow = false;
