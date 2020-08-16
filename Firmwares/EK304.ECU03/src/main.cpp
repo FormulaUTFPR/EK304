@@ -112,23 +112,10 @@ void setup()
 
   setupCAN();
 
-  frame.id.endDestino = EK304CAN_ID_ADDRESS_GTW;
-  frame.id.endOrigem = EK304CAN_ID_ADDRESS_THIS;
-  frame.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;
-
-  frame.msg.variant = 0x00;
-  frame.msg.length = 5;
-
   Serial.begin(9600);
   SPI.begin();
 
   pinMode(LED_CPU, OUTPUT);
-
-  digitalWrite(LED_CPU, HIGH);
-  CAN_Init(&mcp2515, CAN_1000KBPS);
-  digitalWrite(LED_CPU, LOW);
-
-  delay(1000);
 
   pinMode(PRESSAO_DO_AR, INPUT);
   pinMode(TEMPERATURA_DO_AR, INPUT);
@@ -262,6 +249,11 @@ void taskIndicadorDaMarcha(void)
 
 void setupCAN()
 {
+
+  digitalWrite(LED_CPU, HIGH);
+  CAN_Init(&mcp2515, CAN_100KBPS);
+  digitalWrite(LED_CPU, LOW);
+
   can_gear.can_id = EK304CAN_ID_ADDRESS_GEAR_POSITION;
   can_gear.can_dlc = 1;
 }

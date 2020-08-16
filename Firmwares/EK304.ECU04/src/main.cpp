@@ -4,7 +4,6 @@
 #include <SPI.h>
 #include <Wire.h>
 
-#include <mcp2515.h>
 #include <EK304ERRORS.h>
 #include <EK304SETTINGS.h>
 //Declaração de tarefas
@@ -79,7 +78,6 @@ int tmrBlinkCount = 0;
 
 //Criar pacotes da CAN
 
-//Atualizado
 can_frame canACEL; //Frame pro acelerometro
 can_frame canOilPressure;
 can_frame canOilTemp;
@@ -123,7 +121,7 @@ MCP2515 mcp2515(CAN_CS);
 void setup()
 {
   //Serial.begin(9600);
-  //Serial.println("Começou o setup");
+  //Serial.println("setup");
 
   setupInit(); //PinModes, inicializar outras coisas, entre outros
   setupCAN();  //Setup da CAN, pacotes e parâmetros
@@ -217,8 +215,6 @@ void taskPressure(void)
     canOilPressure.data[0] = (3.0 * (voltage - 0.47));                                         //Faz os cálculos para converter a tensao lida em pressao
 
     mcp2515.sendMessage(&canOilPressure);
-
-    //Checar se precisa alterar o valor para a transmissão via CAN
 
     tmrPressureOverflow = false;
 
@@ -374,25 +370,13 @@ void setupCAN()
 {
 
   digitalWrite(LED_CPU, HIGH); //Deixa o LED ligado enquanto está settando a CAN
-  CAN_Init(&mcp2515, CAN_1000KBPS);
+  CAN_Init(&mcp2515, CAN_100KBPS);
   digitalWrite(LED_CPU, LOW); //Desliga o LED
-
-  /*
-  canOTHER.id.endOrigem = EK304CAN_ID_ADDRESS_THIS; //Endereço de origem do módulo 4
-  canOTHER.id.endDestino = EK304CAN_ID_ADDRESS_GTW; //Para o módulo 0
-  canOTHER.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;   //Tipo de dado "dados"
-  canOTHER.msg.length = 5;                          //5 bytes
-  canOTHER.msg.variant = 0x00;                      //Pacote 1
-
-  //canACEL.id.endOrigem = EK304CAN_ID_ADDRESS_THIS; //Endereço de origem - módulo 4
-  //canACEL.id.endDestino = EK304CAN_ID_ADDRESS_GTW; //Para o módulo 0
-  //canACEL.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;   //Tipo de dados "Dados"
-  */
 
   canACEL.can_id = EK304CAN_ID_ADDRESS_ACC_03; //Define o id como o do acelerômetro 3 da CAN
   canACEL.can_dlc = 6;                         //Tamanho do pacote
 
-  canOilPressure.can_id = EK304CAN_ID_ADDRESS_SPEED;
+  canOilPressure.can_id = EK304CAN_ID_ADDRESS_OIL_PRESSURE;
   canOilPressure.can_dlc = 1;
 
   canOilTemp.can_id = EK304CAN_ID_ADDRESS_OIL_TEMPERATURE;

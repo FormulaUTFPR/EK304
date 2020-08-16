@@ -16,6 +16,11 @@
 const int MPU1 = 0x68; // Se o pino ADO for conectado em GND o modulo assume esse endereço
 const int MPU2 = 0x69; // Se o pino ADO for conectado em 5V ou 3,3V o modulo assume esse endereço
 
+//PROTOTIPOS DE FUNCOES
+
+void setupCAN();
+void setupWIRE();
+
 //CRIACAO DE TASKS
 void taskModu1(void); //Cria task do modulo 1
 void taskModu2(void); //Cria task do modulo 2
@@ -82,15 +87,12 @@ MCP2515 mcp2515(10);
 
 void setup()
 {
+  setupCAN();
+  setupWIRE();
+
   pinMode(LED_BUILTIN, OUTPUT);
   SPI.begin();
-  Wire.begin(); //Inicia I2C
   Serial.begin(9600);
-
-  //Configura a CAN
-  digitalWrite(LED_BUILTIN, HIGH);
-  CAN_Init(&mcp2515, CAN_1000KBPS);
-  digitalWrite(LED_BUILTIN, LOW);
 
   //Configura o TimerOne
   Timer1.initialize(TMR_BASE);
@@ -98,50 +100,6 @@ void setup()
 
   tmrCansendEnable = true;
   tmrSuspEnable = true;
-
-  //MODULO 1
-  Modulo1.can_id = EK304CAN_ID_ADDRESS_ACC_01;
-  Modulo1.can_dlc = 6;
-  /*
-  Modulo1.msg.data[0] = fAcx1;
-  Modulo1.msg.data[1] = fAcy1;
-  Modulo1.msg.data[2] = fAcz1;
-  Modulo1.msg.data[3] = fGyx1;
-  Modulo1.msg.data[4] = fGyy1;
-  Modulo1.msg.data[5] = fGyz1;
-  */
-
-  //MODULO 2
-  Modulo2.can_id = EK304CAN_ID_ADDRESS_ACC_02;
-  Modulo2.can_dlc = 6;
-
-  /*
-  Modulo2.msg.data[0] = fAcx2;
-  Modulo2.msg.data[1] = fAcy2;
-  Modulo2.msg.data[2] = fAcz2;
-  Modulo2.msg.data[3] = fGyx2;
-  Modulo2.msg.data[4] = fGyy2;
-  Modulo2.msg.data[5] = fGyz2;
-  */
-
-  //SUSPENSAO
-  Suspensao.can_id = EK304CAN_ID_ADDRESS_SUSP_FRONT;
-  Suspensao.can_dlc = 2;
-
-  /*
-  Suspensao.msg.data[0] = posicaoSuspDireita;
-  Suspensao.msg.data[1] = posicaoSuspEsquerda;
-  */
-
-  Wire.beginTransmission(MPU1); //Inicia transmissao para o endereco do Modulo 1
-  Wire.write(0x6B);
-  Wire.write(0);
-  Wire.endTransmission(true);
-
-  Wire.beginTransmission(MPU2); //Inicia transmissao para o endereco do Modulo 2
-  Wire.write(0x6B);
-  Wire.write(0);
-  Wire.endTransmission(true);
 }
 
 void loop()
@@ -389,4 +347,65 @@ void taskCAN(void)
     }
   }
   */
+}
+
+//Funções
+
+void setupCAN()
+{
+
+  //Configura a CAN
+  digitalWrite(LED_BUILTIN, HIGH);
+  CAN_Init(&mcp2515, CAN_100KBPS);
+  digitalWrite(LED_BUILTIN, LOW);
+
+  //MODULO 1
+  Modulo1.can_id = EK304CAN_ID_ADDRESS_ACC_01;
+  Modulo1.can_dlc = 6;
+  /*
+  Modulo1.msg.data[0] = fAcx1;
+  Modulo1.msg.data[1] = fAcy1;
+  Modulo1.msg.data[2] = fAcz1;
+  Modulo1.msg.data[3] = fGyx1;
+  Modulo1.msg.data[4] = fGyy1;
+  Modulo1.msg.data[5] = fGyz1;
+  */
+
+  //MODULO 2
+  Modulo2.can_id = EK304CAN_ID_ADDRESS_ACC_02;
+  Modulo2.can_dlc = 6;
+
+  /*
+  Modulo2.msg.data[0] = fAcx2;
+  Modulo2.msg.data[1] = fAcy2;
+  Modulo2.msg.data[2] = fAcz2;
+  Modulo2.msg.data[3] = fGyx2;
+  Modulo2.msg.data[4] = fGyy2;
+  Modulo2.msg.data[5] = fGyz2;
+  */
+
+  //SUSPENSAO
+  Suspensao.can_id = EK304CAN_ID_ADDRESS_SUSP_FRONT;
+  Suspensao.can_dlc = 2;
+
+  /*
+  Suspensao.msg.data[0] = posicaoSuspDireita;
+  Suspensao.msg.data[1] = posicaoSuspEsquerda;
+  */
+}
+
+void setupWIRE()
+{
+
+  Wire.begin(); //Inicia I2C
+
+  Wire.beginTransmission(MPU1); //Inicia transmissao para o endereco do Modulo 1
+  Wire.write(0x6B);
+  Wire.write(0);
+  Wire.endTransmission(true);
+
+  Wire.beginTransmission(MPU2); //Inicia transmissao para o endereco do Modulo 2
+  Wire.write(0x6B);
+  Wire.write(0);
+  Wire.endTransmission(true);
 }

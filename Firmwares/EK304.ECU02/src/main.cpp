@@ -156,32 +156,9 @@ void setup()
 
     setupCAN();
 
-    /*
-
-    frame.id.endOrigem = EK304CAN_ID_ADDRESS_THIS;
-    frame.id.endDestino = EK304CAN_ID_ADDRESS_GTW;
-    frame.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;
-
-    frame.msg.variant = 0x00;
-    frame.msg.length = 6;
-
-    frame.msg.data[0] = ValorPre & 0xFF;
-    frame.msg.data[1] = (unsigned long)FatorLambda & 0xFF;
-    frame.msg.data[2] = ValorTPS & 0xFF;
-    frame.msg.data[3] = TempAG & 0xFF;
-    frame.msg.data[4] = TempAR & 0xFF;
-    frame.msg.data[5] = RPM & 0xFF;
-
-    */
-
     pinMode(LED_CPU, OUTPUT);
     pinMode(PIN_RPM, INPUT_PULLUP);
-
-    digitalWrite(LED_CPU, HIGH);
-    Serial.print("Conectando ao MCP2515... ");
-    CAN_Init(&mcp2515, CAN_1000KBPS);
-    Serial.println("Conectado!");
-    digitalWrite(LED_CPU, LOW);
+    pinMode(A1, INPUT);
 
     // Sensor de RPM
     attachInterrupt(digitalPinToInterrupt(PIN_RPM), taskRPM, RISING); //Quando o sensor passa de LOW pra HIGH, chama a funcao taskPulso
@@ -194,12 +171,12 @@ void setup()
     tmrSensoresAnalogicosEnable = false;
     tmrRotacaoEnable = true;
 
-    tmrCANSendAirTempEnable = true;
-    tmrCANSendLambdaEnable = true;
-    tmrCANSendMAPEnable = true;
+    tmrCANSendAirTempEnable = false;
+    tmrCANSendLambdaEnable = false;
+    tmrCANSendMAPEnable = false;
     tmrCANSendRPMEnable = true;
-    tmrCANSendTPSEnable = true;
-    tmrCANSendWaterTempEnable = true;
+    tmrCANSendTPSEnable = false;
+    tmrCANSendWaterTempEnable = false;
 }
 
 void loop()
@@ -223,9 +200,10 @@ void taskRPM(void)
         media = RPM * contador;             //Multiplica o RPM por (idealmente) NUM_AMOSTRAGEM para ter a media entre os NUM_AMOSTRAGEM periodos
         media = media / NUM_IMAS;           //Divide a media pelo numero de imãs na roda fonica
 
-        media = media / CONST_DIV_RPM;
+        //media = media / CONST_DIV_RPM;
 
-        can_RPM.data[0] = media;
+        can_RPM.data[1] = media & 0xFF << 8;
+        can_RPM.data[0] = media & 0xFF;
 
         contador = 0;            //faz o contador voltar para 1
         tempoInicial = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
@@ -316,6 +294,8 @@ void taskCANSend(void)
 
         mcp2515.sendMessage(&can_AirTemp);
         tmrCANSendAirTempOverflow = false;
+
+        tmrBlinkEnable = true;
     }
 
     if (tmrCANSendLambdaOverflow)
@@ -325,6 +305,8 @@ void taskCANSend(void)
 
         mcp2515.sendMessage(&can_lambda);
         tmrCANSendLambdaOverflow = false;
+
+        tmrBlinkEnable = true;
     }
 
     if (tmrCANSendMAPOverflow)
@@ -336,12 +318,21 @@ void taskCANSend(void)
 
         mcp2515.sendMessage(&can_MAP);
         tmrCANSendMAPOverflow = false;
+
+        tmrBlinkEnable = true;
     }
 
     if (tmrCANSendRPMOverflow)
     {
+        media = analogRead(A1) * 12;
+
+        can_RPM.data[1] = media & 0xFF << 8;
+        can_RPM.data[0] = media & 0xFF;
+
         mcp2515.sendMessage(&can_RPM);
         tmrCANSendRPMOverflow = false;
+
+        tmrBlinkEnable = true;
     }
 
     if (tmrCANSendTPSOverflow)
@@ -362,6 +353,8 @@ void taskCANSend(void)
 
         mcp2515.sendMessage(&can_TPS);
         tmrCANSendTPSOverflow = false;
+
+        tmrBlinkEnable = true;
     }
 
     if (tmrCANSendWaterTempOverflow)
@@ -373,6 +366,8 @@ void taskCANSend(void)
 
         mcp2515.sendMessage(&can_WaterTemp);
         tmrCANSendWaterTempOverflow = false;
+
+        tmrBlinkEnable = true;
     }
 }
 
@@ -486,6 +481,9 @@ void taskBlink(void)
 
 void setupCAN()
 {
+    digitalWrite(LED_CPU, HIGH);
+    CAN_Init(&mcp2515, CAN_100KBPS);
+    digitalWrite(LED_CPU, LOW);
 
     can_AirTemp.can_id = EK304CAN_ID_ADDRESS_AIR_TEMP;
     can_AirTemp.can_dlc = 1;
@@ -497,11 +495,29 @@ void setupCAN()
     can_MAP.can_dlc = 2;
 
     can_RPM.can_id = EK304CAN_ID_ADDRESS_RPM;
-    can_RPM.can_dlc = 1;
+    can_RPM.can_dlc = 2;
 
     can_TPS.can_id = EK304CAN_ID_ADDRESS_TPS;
     can_TPS.can_dlc = 1;
 
     can_WaterTemp.can_id = EK304CAN_ID_ADDRESS_WATER_TEMPERATURE;
     can_WaterTemp.can_dlc = 1;
+
+    /*
+
+    frame.id.endOrigem = EK304CAN_ID_ADDRESS_THIS;
+    frame.id.endDestino = EK304CAN_ID_ADDRESS_GTW;
+    frame.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;
+
+    frame.msg.variant = 0x00;
+    frame.msg.length = 6;
+
+    frame.msg.data[0] = ValorPre & 0xFF;
+    frame.msg.data[1] = (unsigned long)FatorLambda & 0xFF;
+    frame.msg.data[2] = ValorTPS & 0xFF;
+    frame.msg.data[3] = TempAG & 0xFF;
+    frame.msg.data[4] = TempAR & 0xFF;
+    frame.msg.data[5] = RPM & 0xFF;
+
+    */
 }

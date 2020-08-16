@@ -64,7 +64,7 @@
 #define SENSOR_VBAT_SAMPLES 10
 #define SENSOR_VBAT_OVERVOLTAGE 14.5
 #define SENSOR_VBAT_UNDERVOLTAGE 10.5
-#define CONST_RPM 51             //255*51 =~ 13000 RPM
+#define CONST_RPM 1              //255*51 =~ 13000 RPM
 #define SENSOR_SUSPENSION_MAX 90 //Ângulo máximo da suspensão
 #define SENSOR_SUSPENSION_MIN 0  //Ângulo mínimo da suspensão
 #define SENSOR_QTTY_TOTAL 50     //Número de sensores
@@ -186,7 +186,6 @@ void isrEncoderSpin();  // trata interrupção do giro do encoder
 void isrEncoderClick(); // trata interrupção do clique do encoder
 
 void setAckTime(int origin);
-void sendSettingsSetup();
 
 /**************************************************************************************************************************************/
 /* DEFINIÇÃO DE TIPOS NÃO PRIMITIVOS                                                                                                   */
@@ -1292,9 +1291,13 @@ void taskCAN()
     {
     case EK304CAN_ID_RPM:
       //RPM
-      sensors[SENSOR_ROTATION_ID].valor = frame.data[0] * CONST_RPM;
+      sensors[SENSOR_ROTATION_ID].valor = frame.data[1];
+      sensors[SENSOR_ROTATION_ID].valor = sensors[SENSOR_ROTATION_ID].valor << 8;
+      sensors[SENSOR_ROTATION_ID].valor += frame.data[0];
 
       setAckTime(sensors[SENSOR_ROTATION_ID].origin);
+
+      Serial.println(sensors[SENSOR_ROTATION_ID].valor);
       break;
     case EK304CAN_ID_ACC_01:
       //Acelerômetro 1
@@ -1500,7 +1503,7 @@ void setupDisplay()
 void setupCAN()
 {
   SPI.begin();
-  CAN_Init(&mcp2515, CAN_1000KBPS);
+  CAN_Init(&mcp2515, CAN_100KBPS);
   tmrCanTestEnabled = false;
 }
 
@@ -1557,36 +1560,6 @@ void setupSDModule()
     Serial.println("Erro ao apagar");
     flagErrorSDCardInit = true;
   }
-}
-
-void sendSettingsSetup()
-{
-  //Manda as taxas de atualização via CAN
-
-  can_frame setting_ecu01;
-  can_frame setting_ecu02;
-  can_frame setting_ecu03;
-  can_frame setting_ecu04;
-  can_frame setting_ecu15;
-
-  //Configuração dos pacotes a serem enviados
-
-  setting_ecu01.can_id = EK304CAN_ID_SETTING_ECU01;
-  setting_ecu01.can_dlc = EK304CAN_SETTING_DLC_ECU01;
-
-  setting_ecu02.can_id = EK304CAN_ID_SETTING_ECU02;
-  setting_ecu02.can_dlc = EK304CAN_SETTING_DLC_ECU02;
-
-  setting_ecu03.can_id = EK304CAN_ID_SETTING_ECU03;
-  setting_ecu03.can_dlc = EK304CAN_SETTING_DLC_ECU03;
-
-  setting_ecu04.can_id = EK304CAN_ID_SETTING_ECU04;
-  setting_ecu04.can_dlc = EK304CAN_SETTING_DLC_ECU04;
-
-  setting_ecu15.can_id = EK304CAN_ID_SETTING_ECU15;
-  setting_ecu15.can_dlc = EK304CAN_SETTING_DLC_ECU15;
-
-  //Configurar conteúdo dos pacotes
 }
 
 /**************************************************************************************************************************************/
