@@ -254,7 +254,7 @@ void setupCAN()
   CAN_Init(&mcp2515, CAN_100KBPS);
   digitalWrite(LED_CPU, LOW);
 
-  can_gear.can_id = EK304CAN_ID_ADDRESS_GEAR_POSITION;
+  can_gear.can_id = EK304CAN_ID_GEAR_POSITION;
   can_gear.can_dlc = 1;
 }
 

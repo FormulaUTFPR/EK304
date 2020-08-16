@@ -373,19 +373,19 @@ void setupCAN()
   CAN_Init(&mcp2515, CAN_100KBPS);
   digitalWrite(LED_CPU, LOW); //Desliga o LED
 
-  canACEL.can_id = EK304CAN_ID_ADDRESS_ACC_03; //Define o id como o do acelerômetro 3 da CAN
-  canACEL.can_dlc = 6;                         //Tamanho do pacote
+  canACEL.can_id = EK304CAN_ID_ACC_03; //Define o id como o do acelerômetro 3 da CAN
+  canACEL.can_dlc = 6;                 //Tamanho do pacote
 
-  canOilPressure.can_id = EK304CAN_ID_ADDRESS_OIL_PRESSURE;
+  canOilPressure.can_id = EK304CAN_ID_OIL_PRESSURE;
   canOilPressure.can_dlc = 1;
 
-  canOilTemp.can_id = EK304CAN_ID_ADDRESS_OIL_TEMPERATURE;
+  canOilTemp.can_id = EK304CAN_ID_OIL_TEMPERATURE;
   canOilTemp.can_dlc = 1;
 
-  canSpeed.can_id = EK304CAN_ID_ADDRESS_SPEED;
+  canSpeed.can_id = EK304CAN_ID_SPEED;
   canSpeed.can_dlc = 1;
 
-  canSuspRear.can_id = EK304CAN_ID_ADDRESS_SUSP_REAR;
+  canSuspRear.can_id = EK304CAN_ID_SUSP_REAR;
   canSuspRear.can_dlc = 4;
 }
 

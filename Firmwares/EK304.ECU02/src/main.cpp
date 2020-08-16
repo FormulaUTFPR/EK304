@@ -34,22 +34,22 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //Delaração das Variaveis Globais
-float ValorLido[6] = {0, 0, 0, 0, 0, 0};
-float FatorLambda;
-int ValorSensor[6];
-int ValorPre;
-int ValorTPS;
-int TempAG;
-int TempAR;
+float ReadValue[6] = {0, 0, 0, 0, 0, 0};
+float LambdaFactor;
+int SensorValue[6];
+int PressureValue;
+int TPSValue;
+int WaterTemp;
+int AirTemp;
 
 //Declaração de variaveis
-unsigned long tempoInicial; //Tempo em Microsegundos em que ocorreu o pulso
-unsigned long difTempo;     //Valor da diferenca de tempo entre dois pulsos
-unsigned int media;         //Media entre alguns RPMs para ter um valor com menos interferencias
-unsigned long frequencia;   //Frequencia não suavizada
-unsigned long RPM;          //RPM nao suavizado - o suavizado é a media
-unsigned long soma;         //Soma dos periodos para fazer a media
-int contador = 0;           //contador para fazer a media
+unsigned long InitialTime; //Tempo em Microsegundos em que ocorreu o pulso
+unsigned long TimeDif;     //Valor da diferenca de tempo entre dois pulsos
+unsigned int average;      //Media entre alguns RPMs para ter um valor com menos interferencias
+unsigned long frequency;   //frequencia não suavizada
+unsigned long RPM;         //RPM nao suavizado - o suavizado é a media
+unsigned long sum;         //Soma dos periodos para fazer a media
+int counter = 0;           //Contador para fazer a media
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -107,9 +107,9 @@ bool tmrSensoresAnalogicosEnable = false;
 bool tmrSensoresAnalogicosOverflow = false;
 int tmrSensoresAnalogicosCount = 0;
 
-bool tmrRotacaoEnable = false;
-bool tmrRotacaoOverflow = false;
-int tmrRotacaoCount = 0;
+bool tmrRotacaoStoppedEnable = false;
+bool tmrRotacaoStoppedOverflow = false;
+int tmrRotacaoStoppedCount = 0;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -139,12 +139,12 @@ MCP2515 mcp2515(CAN_CS);
 #define TMR_RPM 20000
 #define TMR_TPS 50000
 #define TMR_WATER_TEMP 1000000
+#define TMR_CHECK_RPM_STOP 1500000
 
 //Outras variaveis globais
 
 #define NUM_AMOSTRAGEM 5 //Numero de amostragens pra media do RPM
-#define NUM_IMAS 9       //Numero de imãs na roda fônica
-#define CONST_DIV_RPM 51 //Constante para divisão do RPM para enviar pela CAN
+#define NUM_SPARKS 2     //Numero de centelhas por revolução
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -169,7 +169,7 @@ void setup()
     tmrBlinkEnable = true;
     tmrCANSendEnable = true;
     tmrSensoresAnalogicosEnable = false;
-    tmrRotacaoEnable = true;
+    tmrRotacaoStoppedEnable = true;
 
     tmrCANSendAirTempEnable = false;
     tmrCANSendLambdaEnable = false;
@@ -192,26 +192,29 @@ void loop()
 
 void taskRPM(void)
 {
-    if (contador >= NUM_AMOSTRAGEM)
+    if (counter >= NUM_AMOSTRAGEM)
     {
-        difTempo = micros() - tempoInicial; //Calcula a diferenca de tempo entre dois pulsos
-        frequencia = 1000000 / difTempo;    //Faz o perídodo virar frequencia
-        RPM = frequencia * 60;              //Multiplica por 60 a frequencia para ter rotacoes por MINUTO
-        media = RPM * contador;             //Multiplica o RPM por (idealmente) NUM_AMOSTRAGEM para ter a media entre os NUM_AMOSTRAGEM periodos
-        media = media / NUM_IMAS;           //Divide a media pelo numero de imãs na roda fonica
+        TimeDif = micros() - InitialTime; //Calcula a diferenca de tempo entre dois pulsos
+        frequency = 1000000 / TimeDif;    //Faz o perídodo virar frequencia
+        RPM = frequency * 60;             //Multiplica por 60 a frequencia para ter rotacoes por MINUTO
+        average = RPM * counter;          //Multiplica o RPM por (idealmente) NUM_AMOSTRAGEM para ter a media entre os NUM_AMOSTRAGEM periodos
+        average = average / NUM_SPARKS;   //Divide a media pelo numero de centelhas numa revolução
 
-        //media = media / CONST_DIV_RPM;
+        //average = average / CONST_DIV_RPM;
 
-        can_RPM.data[1] = media & 0xFF << 8;
-        can_RPM.data[0] = media & 0xFF;
+        can_RPM.data[1] = average & 0xFF << 8;
+        can_RPM.data[0] = average & 0xFF;
 
-        contador = 0;            //faz o contador voltar para 1
-        tempoInicial = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
+        counter = 0;            //faz o counter voltar para 1
+        InitialTime = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
     }
     else
     {
-        contador++; //Incrementa o contador
+        counter++; //Incrementa o counter
     }
+
+    tmrRotacaoStoppedCount = 0; //Deixa o counter dessa task em 0 pra evitar enviar 0 como RPM
+
 } //Acaba a tarefa taskRPM
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -225,39 +228,39 @@ void taskSensoresAnalogicos(void)
     if (tmrSensoresAnalogicosEnable)
     {
         //Atribuição valores sensor
-        ValorSensor[0] = analogRead(SensorMAP);
-        ValorSensor[1] = analogRead(SensorSON);
-        ValorSensor[2] = analogRead(SensorTPS);
-        ValorSensor[3] = analogRead(SensorTEMPAG);
-        ValorSensor[4] = analogRead(SensorTEMPAR);
+        SensorValue[0] = analogRead(SensorMAP);
+        SensorValue[1] = analogRead(SensorSON);
+        SensorValue[2] = analogRead(SensorTPS);
+        SensorValue[3] = analogRead(SensorTEMPAG);
+        SensorValue[4] = analogRead(SensorTEMPAR);
 
         for (int i = 0; i < 5; i++) //faz a conversão de bits para valores de tensão em Volts
         {
-            ValorLido[i] = ValorSensor[i] * (5.0 / 1023);
+            ReadValue[i] = SensorValue[i] * (5.0 / 1023);
         }
 
-        ValorPre = (ValorLido[0] - 0.204) * 0.018819;                                       //Converte para KPA
-        FatorLambda = (((ValorLido[1] - 0.2) * 0.65 / 4.6) + 0.65) * 100;                   //valor X100 para torna-lo inteiro //Converte a para fator Lambda
-        ValorTPS = (ValorLido[2] - 0.23) * (100 / 3.75);                                    //Converte para Porcentagem
-        if (ValorLido[2] < 0)                                                               //
-        {                                                                                   //
-            ValorTPS = 0;                                                                   //
-        }                                                                                   //
-        else                                                                                //
-        {                                                                                   // Impede do valor em porcentagem ser negativo e maior que 100
-            if (ValorLido[2] > 100)                                                         //
-            {                                                                               //
-                ValorTPS = 100;                                                             //
-            }                                                                               //
-        }                                                                                   //
-        TempAG = (-1 / 0.038) * log((ValorLido[3] * 1000) / (7656.8 * (5 - ValorLido[3]))); //Converte para °C
-        TempAR = (-1 / 0.04) * log((ValorLido[4] * 1000) / (7021 * (5 - ValorLido[4])));    //Converte para °C
+        PressureValue = (ReadValue[0] - 0.204) * 0.018819;                                     //Converte para KPA
+        LambdaFactor = (((ReadValue[1] - 0.2) * 0.65 / 4.6) + 0.65) * 100;                     //valor X100 para torna-lo inteiro //Converte a para fator Lambda
+        TPSValue = (ReadValue[2] - 0.23) * (100 / 3.75);                                       //Converte para Porcentagem
+        if (ReadValue[2] < 0)                                                                  //
+        {                                                                                      //
+            TPSValue = 0;                                                                      //
+        }                                                                                      //
+        else                                                                                   //
+        {                                                                                      // Impede do valor em porcentagem ser negativo e maior que 100
+            if (ReadValue[2] > 100)                                                            //
+            {                                                                                  //
+                TPSValue = 100;                                                                //
+            }                                                                                  //
+        }                                                                                      //
+        WaterTemp = (-1 / 0.038) * log((ReadValue[3] * 1000) / (7656.8 * (5 - ReadValue[3]))); //Converte para °C
+        AirTemp = (-1 / 0.04) * log((ReadValue[4] * 1000) / (7021 * (5 - ReadValue[4])));      //Converte para °C
         //Atribuição dos valores convertidos no pacote da CAN
-        can_MAP.data[0] = ValorPre;
-        can_lambda.data[0] = FatorLambda;
-        can_TPS.data[0] = ValorTPS;
-        can_WaterTemp.data[0] = TempAG;
-        can_AirTemp.data[0] = TempAR;
+        can_MAP.data[0] = PressureValue;
+        can_lambda.data[0] = LambdaFactor;
+        can_TPS.data[0] = TPSValue;
+        can_WaterTemp.data[0] = WaterTemp;
+        can_AirTemp.data[0] = AirTemp;
 
         tmrSensoresAnalogicosOverflow = false;
     }
@@ -265,9 +268,12 @@ void taskSensoresAnalogicos(void)
 
 void taskRotacao(void)
 {
-    if (tmrRotacaoEnable)
+    if (tmrRotacaoStoppedEnable)
     {
-        tmrRotacaoOverflow = false;
+        can_RPM.data[0] = 0 & 0xFF;
+        can_RPM.data[1] = 0 & 0xFF;
+
+        tmrRotacaoStoppedOverflow = false;
     }
 }
 
@@ -324,10 +330,10 @@ void taskCANSend(void)
 
     if (tmrCANSendRPMOverflow)
     {
-        media = analogRead(A1) * 12;
+        average = analogRead(A1) * 12;
 
-        can_RPM.data[1] = media & 0xFF << 8;
-        can_RPM.data[0] = media & 0xFF;
+        can_RPM.data[1] = average & 0xFF << 8;
+        can_RPM.data[0] = average & 0xFF;
 
         mcp2515.sendMessage(&can_RPM);
         tmrCANSendRPMOverflow = false;
@@ -453,6 +459,16 @@ void taskScheduler(void)
         }
     }
 
+    if (tmrRotacaoStoppedEnable)
+    {
+        tmrRotacaoStoppedCount++;
+        if (tmrRotacaoStoppedCount >= TMR_CHECK_RPM_STOP / TMR_BASE)
+        {
+            tmrRotacaoStoppedCount = 0;
+            tmrRotacaoStoppedOverflow = true;
+        }
+    }
+
     if (tmrBlinkEnable)
     {
         tmrBlinkCount++;
@@ -485,39 +501,21 @@ void setupCAN()
     CAN_Init(&mcp2515, CAN_100KBPS);
     digitalWrite(LED_CPU, LOW);
 
-    can_AirTemp.can_id = EK304CAN_ID_ADDRESS_AIR_TEMP;
+    can_AirTemp.can_id = EK304CAN_ID_AIR_TEMP;
     can_AirTemp.can_dlc = 1;
 
-    can_lambda.can_id = EK304CAN_ID_ADDRESS_LAMBA;
+    can_lambda.can_id = EK304CAN_ID_LAMBA;
     can_lambda.can_dlc = 1;
 
-    can_MAP.can_id = EK304CAN_ID_ADDRESS_MAP;
+    can_MAP.can_id = EK304CAN_ID_MAP;
     can_MAP.can_dlc = 2;
 
-    can_RPM.can_id = EK304CAN_ID_ADDRESS_RPM;
+    can_RPM.can_id = EK304CAN_ID_RPM;
     can_RPM.can_dlc = 2;
 
-    can_TPS.can_id = EK304CAN_ID_ADDRESS_TPS;
+    can_TPS.can_id = EK304CAN_ID_TPS;
     can_TPS.can_dlc = 1;
 
-    can_WaterTemp.can_id = EK304CAN_ID_ADDRESS_WATER_TEMPERATURE;
+    can_WaterTemp.can_id = EK304CAN_ID_WATER_TEMPERATURE;
     can_WaterTemp.can_dlc = 1;
-
-    /*
-
-    frame.id.endOrigem = EK304CAN_ID_ADDRESS_THIS;
-    frame.id.endDestino = EK304CAN_ID_ADDRESS_GTW;
-    frame.id.tipo = EK304CAN_ID_TYPE_SENSORDATA;
-
-    frame.msg.variant = 0x00;
-    frame.msg.length = 6;
-
-    frame.msg.data[0] = ValorPre & 0xFF;
-    frame.msg.data[1] = (unsigned long)FatorLambda & 0xFF;
-    frame.msg.data[2] = ValorTPS & 0xFF;
-    frame.msg.data[3] = TempAG & 0xFF;
-    frame.msg.data[4] = TempAR & 0xFF;
-    frame.msg.data[5] = RPM & 0xFF;
-
-    */
 }
