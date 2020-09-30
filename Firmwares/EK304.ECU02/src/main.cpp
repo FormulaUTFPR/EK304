@@ -45,26 +45,24 @@ int AirTemp;
 //Declaração de variaveis
 unsigned long InitialTime; //Tempo em Microsegundos em que ocorreu o pulso
 unsigned long TimeDif;     //Valor da diferenca de tempo entre dois pulsos
-unsigned int average;      //Media entre alguns RPMs para ter um valor com menos interferencias
-unsigned long frequency;   //frequencia não suavizada
-unsigned long RPM;         //RPM nao suavizado - o suavizado é a media
-unsigned long sum;         //Soma dos periodos para fazer a media
-int counter = 0;           //Contador para fazer a media
+
+bool flagRPM = false; //Cria uma flag para dizer que o evento pulso do RPM ocorreu
+int numPulses = 0;    //Cria uma variável para armazenar a quantidade de pulsos que ocorreram antes da função ser tratada
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //Criação das tasks
 void taskSensoresAnalogicos(void); //Cria task dos sensores TPS/MAP/TEMP AGUA/TEMP AR
-void taskRotacao(void);            //Cria task do sensor de velocidade
 void taskCANSend(void);            //Cria task para enviar dados
 void taskScheduler(void);
 void taskBlink(void);
-void taskRPM(void);
+void ISR_RPM(void);
 
 //Protótipos de funções
 
 void setupCAN();
+int getRPM(void);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -107,9 +105,7 @@ bool tmrSensoresAnalogicosEnable = false;
 bool tmrSensoresAnalogicosOverflow = false;
 int tmrSensoresAnalogicosCount = 0;
 
-bool tmrRotacaoStoppedEnable = false;
-bool tmrRotacaoStoppedOverflow = false;
-int tmrRotacaoStoppedCount = 0;
+bool tmrBlinkRunCount = false;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -140,6 +136,7 @@ MCP2515 mcp2515(CAN_CS);
 #define TMR_TPS 50000
 #define TMR_WATER_TEMP 1000000
 #define TMR_CHECK_RPM_STOP 1500000
+#define TMR_BLINK_RUN 100000
 
 //Outras variaveis globais
 
@@ -151,71 +148,85 @@ MCP2515 mcp2515(CAN_CS);
 
 void setup()
 {
-    Serial.begin(9600);
+    //Serial.begin(9600);
+
+    pinMode(LED_CPU, OUTPUT);
+
+    digitalWrite(LED_CPU, HIGH);
+    delay(100);
+    digitalWrite(LED_CPU, LOW);
+    delay(100);
+
     //CAN
 
     setupCAN();
 
-    pinMode(LED_CPU, OUTPUT);
     pinMode(PIN_RPM, INPUT_PULLUP);
-    pinMode(A1, INPUT);
+    pinMode(SensorSON, INPUT);
 
     // Sensor de RPM
-    attachInterrupt(digitalPinToInterrupt(PIN_RPM), taskRPM, RISING); //Quando o sensor passa de LOW pra HIGH, chama a funcao taskPulso
+    attachInterrupt(digitalPinToInterrupt(PIN_RPM), ISR_RPM, RISING); //Quando o sensor passa de LOW pra HIGH, chama a funcao taskPulso
 
     Timer1.initialize(TMR_BASE);
     Timer1.attachInterrupt(taskScheduler);
 
     tmrBlinkEnable = true;
-    tmrCANSendEnable = true;
+    tmrCANSendEnable = false;
     tmrSensoresAnalogicosEnable = false;
-    tmrRotacaoStoppedEnable = true;
 
     tmrCANSendAirTempEnable = false;
     tmrCANSendLambdaEnable = false;
     tmrCANSendMAPEnable = false;
-    tmrCANSendRPMEnable = true;
-    tmrCANSendTPSEnable = false;
-    tmrCANSendWaterTempEnable = false;
+    tmrCANSendRPMEnable = false;
+    tmrCANSendTPSEnable = true;
+    tmrCANSendWaterTempEnable = true;
 }
 
 void loop()
 {
     taskBlink();
     taskCANSend();
-    taskRotacao();
     taskSensoresAnalogicos();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void taskRPM(void)
+void ISR_RPM(void) //ISR para quando há pulso
 {
-    if (counter >= NUM_AMOSTRAGEM)
+    flagRPM = true;
+    numPulses++;
+}
+
+int getRPM()
+{
+    unsigned long TimeDif; //Valor da diferenca de tempo entre dois pulsos
+    unsigned int average;  //Media entre alguns RPMs para ter um valor com menos interferencias
+    unsigned long RPM;     //RPM nao suavizado - o suavizado é a media
+    unsigned int counter;  //Contador para fazer a media
+
+    if (flagRPM)
     {
+        flagRPM = false;     //Desativa a flag que chama a função
+        counter = numPulses; //Coloca o valor de numPulses numa variável que não pertence ao interrupt
+        numPulses = 0;       //Faz o numero de pulsos que ocorreu voltar para 0
+
+        //Calcula os pulsos para virar rotação por min
+
         TimeDif = micros() - InitialTime; //Calcula a diferenca de tempo entre dois pulsos
-        frequency = 1000000 / TimeDif;    //Faz o perídodo virar frequencia
-        RPM = frequency * 60;             //Multiplica por 60 a frequencia para ter rotacoes por MINUTO
+        RPM = 60000000 / TimeDif;         //Faz o perídodo virar frequencia e multiplica por 60 a frequencia para ter rotacoes por MINUTO
         average = RPM * counter;          //Multiplica o RPM por (idealmente) NUM_AMOSTRAGEM para ter a media entre os NUM_AMOSTRAGEM periodos
         average = average / NUM_SPARKS;   //Divide a media pelo numero de centelhas numa revolução
 
-        //average = average / CONST_DIV_RPM;
-
-        can_RPM.data[1] = average & 0xFF << 8;
-        can_RPM.data[0] = average & 0xFF;
-
-        counter = 0;            //faz o counter voltar para 1
         InitialTime = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
     }
     else
     {
-        counter++; //Incrementa o counter
+        average = 0; //Caso a flag não esteja true é porque não teve pulso, ou seja, rotação
     }
 
-    tmrRotacaoStoppedCount = 0; //Deixa o counter dessa task em 0 pra evitar enviar 0 como RPM
-
-} //Acaba a tarefa taskRPM
+    return average;
+} //Acaba a getRPM
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -266,33 +277,8 @@ void taskSensoresAnalogicos(void)
     }
 }
 
-void taskRotacao(void)
-{
-    if (tmrRotacaoStoppedEnable)
-    {
-        can_RPM.data[0] = 0 & 0xFF;
-        can_RPM.data[1] = 0 & 0xFF;
-
-        tmrRotacaoStoppedOverflow = false;
-    }
-}
-
 void taskCANSend(void)
 {
-    /*
-    if (CAN_ReceiveData(&mcp2515, &frameRe) == MCP2515::ERROR_OK)
-    {
-        if (frameRe.id.tipo == EK304CAN_ID_TYPE_ACK) //envia pacote do tipo ACK para o Gateway
-        {
-            if (frameRe.id.endDestino == EK304CAN_ID_ADDRESS_THIS)
-            {
-                CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_GTW);
-                digitalWrite(LED_CPU, !digitalRead(LED_CPU));
-            }
-        }
-    }
-*/
-
     if (tmrCANSendAirTempOverflow)
     {
         int AirTempReadValue = analogRead(SensorTEMPAR);
@@ -330,7 +316,7 @@ void taskCANSend(void)
 
     if (tmrCANSendRPMOverflow)
     {
-        average = analogRead(A1) * 12;
+        int average = getRPM();
 
         can_RPM.data[1] = average & 0xFF << 8;
         can_RPM.data[0] = average & 0xFF;
@@ -344,18 +330,17 @@ void taskCANSend(void)
     if (tmrCANSendTPSOverflow)
     {
         int TPSReadValue = analogRead(SensorTPS);
-        can_TPS.data[0] = (TPSReadValue - 0.23) * (100 / 3.75); //Converte para Porcentagem
-        if (TPSReadValue < 0)                                   //
-        {                                                       //
-            can_TPS.data[0] = 0;                                //
-        }                                                       //
-        else                                                    //
-        {                                                       // Impede do valor em porcentagem ser negativo e maior que 100
-            if (TPSReadValue > 100)                             //
-            {                                                   //
-                can_TPS.data[0] = 100;                          //
-            }                                                   //
+        TPSReadValue = (TPSReadValue - 480) / 1.8; //Converte para Porcentagem
+        can_TPS.data[0] = TPSReadValue - 47;       //
+        if (TPSReadValue < 0)                      //
+        {                                          //
+            can_TPS.data[0] = 0;                   //
+        }                                          //
+        else if (TPSReadValue > 100)               // Impede do valor em porcentagem ser negativo e maior que 100
+        {                                          //
+            can_TPS.data[0] = 100;                 //
         }
+        //
 
         mcp2515.sendMessage(&can_TPS);
         tmrCANSendTPSOverflow = false;
@@ -367,8 +352,6 @@ void taskCANSend(void)
     {
         int WaterTempReadValue = analogRead(SensorTEMPAG);
         can_WaterTemp.data[0] = (-1 / 0.038) * log((WaterTempReadValue * 1000) / (7656.8 * (5 - WaterTempReadValue))); //Converte para °C
-
-        Serial.println("watertemp");
 
         mcp2515.sendMessage(&can_WaterTemp);
         tmrCANSendWaterTempOverflow = false;
@@ -459,16 +442,6 @@ void taskScheduler(void)
         }
     }
 
-    if (tmrRotacaoStoppedEnable)
-    {
-        tmrRotacaoStoppedCount++;
-        if (tmrRotacaoStoppedCount >= TMR_CHECK_RPM_STOP / TMR_BASE)
-        {
-            tmrRotacaoStoppedCount = 0;
-            tmrRotacaoStoppedOverflow = true;
-        }
-    }
-
     if (tmrBlinkEnable)
     {
         tmrBlinkCount++;
@@ -478,16 +451,20 @@ void taskScheduler(void)
             tmrBlinkOverflow = true;
         }
     }
+
+    if (tmrBlinkOverflow)
+    {
+        tmrBlinkRunCount++;
+        if (tmrBlinkRunCount >= TMR_BLINK_RUN / TMR_BASE)
+        {
+            tmrBlinkOverflow = false;
+        }
+    }
 }
 
 void taskBlink(void)
 {
-    digitalWrite(LED_CPU, tmrBlinkEnable);
-    if (tmrBlinkOverflow)
-    {
-        tmrBlinkOverflow = false;
-        tmrBlinkEnable = false;
-    }
+    digitalWrite(LED_CPU, tmrBlinkOverflow);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -10,12 +10,12 @@
 /**************************************************************************************************************************************/
 #define FIRMWARE_VERSION "v0.1.2"
 
-#define TMR_BASE 100000
-#define TMR_BLINK 1000000
-#define TMR_STARTUP_LOGO 1000000
-#define TMR_STARTUP_NAME 1000000
-#define TMR_ERRORMSGS 2000000
-#define TMR_CANTEST 1000000
+#define TMR_BASE 100000          //Timer base pelo qual "chamaremos" e escalonador
+#define TMR_BLINK 1000000        //Tempo que o LED fica ligado
+#define TMR_STARTUP_LOGO 1000000 //Tempo que a logo fica aparecendo
+#define TMR_STARTUP_NAME 1000000 //Tempo para ligar
+#define TMR_ERRORMSGS 2000000    //Tempo para alternar a mensagem de erro
+#define TMR_CANTEST 1000000      //Tempo para mandar os pacotes ASK
 
 #define TMR_CANCHECKERROR 1500 // millisecs()
 
@@ -64,7 +64,6 @@
 #define SENSOR_VBAT_SAMPLES 10
 #define SENSOR_VBAT_OVERVOLTAGE 14.5
 #define SENSOR_VBAT_UNDERVOLTAGE 10.5
-#define CONST_RPM 1              //255*51 =~ 13000 RPM
 #define SENSOR_SUSPENSION_MAX 90 //Ângulo máximo da suspensão
 #define SENSOR_SUSPENSION_MIN 0  //Ângulo mínimo da suspensão
 #define SENSOR_QTTY_TOTAL 50     //Número de sensores
@@ -74,7 +73,9 @@
 #define STRING_DISPLAY_CARNAME "EK-304"
 #define STRING_DISPLAY_DATETIME_MAX 33
 
-#define STRING_FILE_NAME "ola2.csv"
+// Endereço de memória do número do teste
+
+#define SD_CARD_EEPROM_ADDRESS 0x00
 
 // erros
 #define ERROR_MSGSIZE 25
@@ -140,6 +141,7 @@
 
 #include <EK304SD.h>
 #include <EK304CAN.h> // importa biblioteca de funções para a CAN (alto nivel)
+#include <EEPROM.h>
 
 /**************************************************************************************************************************************/
 /* DECLARAÇÃO DAS TAREFAS                                                                                                             */
@@ -577,6 +579,9 @@ String bufSerial; // buffer para transmissão na serial
 int amostrasVBat = 0;
 float ValorVBat = 0.0;
 
+// Nome do arquivo
+String stringFileName;
+
 /**************************************************************************************************************************************/
 /* CONFIGURAÇÃO DOS PERIFÉRICOS                                                                                                       */
 /**************************************************************************************************************************************/
@@ -584,9 +589,9 @@ float ValorVBat = 0.0;
 // cria instância do display de LCD (configura pinos) https://github.com/olikraus/u8glib/wiki/device#st7920-128x64
 // U8GLIB_ST7920_128X64_1X(sck, mosi, cs [, reset])
 
-//U8GLIB_ST7920_128X64_1X u8g(LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7, LCD_EN, LCD_RS, LCD_RW, LCD_RE);
+U8GLIB_ST7920_128X64_1X u8g(LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7, LCD_EN, LCD_RS, LCD_RW, LCD_RE);
 
-U8GLIB_ST7920_128X64_1X u8g(LCD_EN, LCD_RW, LCD_RS); //SPI-
+//U8GLIB_ST7920_128X64_1X u8g(LCD_EN, LCD_RW, LCD_RS); //SPI-
 
 // cria uma instância do módulo transciever CAN (configura pino CS)
 MCP2515 mcp2515(SPI_CS_CAN);
@@ -837,7 +842,7 @@ void taskScheduler()
   }
 }
 
-void taskADC()
+void taskADC() //Task para pegar o valor de tensão da bateria
 {
   if (amostrasVBat < SENSOR_VBAT_SAMPLES)
   {
@@ -906,6 +911,7 @@ void taskErrorsMonitor()
     sysErrors[ERROR_ELECTRICAL_UNDERVOLTAGE_ID].status = false;
 
   // verifica se há erro na comunicação com as ECUs
+  //ECU 01
   if (EK304CAN_ECU01_ENABLED && ((millis() - tmpRecebimentoAckECU01) >= TMR_CANCHECKERROR))
   {
     sysErrors[ERROR_CAN_ECU01_ID].status = true;
@@ -914,6 +920,7 @@ void taskErrorsMonitor()
   else
     sysErrors[ERROR_CAN_ECU01_ID].status = false;
 
+  //ECU 02
   if (EK304CAN_ECU02_ENABLED && ((millis() - tmpRecebimentoAckECU02) >= TMR_CANCHECKERROR))
   {
     sysErrors[ERROR_CAN_ECU02_ID].status = true;
@@ -922,6 +929,7 @@ void taskErrorsMonitor()
   else
     sysErrors[ERROR_CAN_ECU02_ID].status = false;
 
+  //ECU 03
   if (EK304CAN_ECU03_ENABLED && ((millis() - tmpRecebimentoAckECU03) >= TMR_CANCHECKERROR))
   {
     sysErrors[ERROR_CAN_ECU03_ID].status = true;
@@ -930,6 +938,7 @@ void taskErrorsMonitor()
   else
     sysErrors[ERROR_CAN_ECU03_ID].status = false;
 
+  //ECU 04
   if (EK304CAN_ECU04_ENABLED && ((millis() - tmpRecebimentoAckECU04) >= TMR_CANCHECKERROR))
   {
     sysErrors[ERROR_CAN_ECU04_ID].status = true;
@@ -938,6 +947,7 @@ void taskErrorsMonitor()
   else
     sysErrors[ERROR_CAN_ECU04_ID].status = false;
 
+  //ECU 15
   if (EK304CAN_ECU15_ENABLED && ((millis() - tmpRecebimentoAckECU15) >= TMR_CANCHECKERROR))
   {
     sysErrors[ERROR_CAN_ECU15_ID].status = true;
@@ -947,15 +957,17 @@ void taskErrorsMonitor()
     sysErrors[ERROR_CAN_ECU15_ID].status = false;
 
   //Verifica se há erro no cartão SD
-
+  //Erro de inicialização
   if (flagErrorSDCardInit)
   {
     sysErrors[ERROR_SD_CARD_INIT].status = true;
     listErrors.add(sysErrors[ERROR_SD_CARD_INIT].ToStringCenter(ERROR_MSGSIZE));
+    //setupSDModule(); //Tenta novamente inicializar
   }
   else
     sysErrors[ERROR_SD_CARD_INIT].status = false;
 
+  //Erro de cheio
   if (flagErrorSDCardFull)
   {
     sysErrors[ERROR_SD_CARD_FULL].status = true;
@@ -964,6 +976,7 @@ void taskErrorsMonitor()
   else
     sysErrors[ERROR_SD_CARD_FULL].status = false;
 
+  //Erro de pacote da CAN desconhecido
   if (flagErrorPacketID)
   {
     sysErrors[ERROR_ID_PACKET].status = true;
@@ -1283,19 +1296,17 @@ void taskBlink()
 
 void taskCAN()
 {
-  if (mcp2515.readMessage(&frame) == MCP2515::ERROR_OK)
+  if (mcp2515.readMessage(&frame) == MCP2515::ERROR_OK) //Recebe o pacote da CAN e checa integridade
   {
-    mcp2515.readMessage(&frame);
-
-    switch (frame.can_id)
+    switch (frame.can_id) //Usa a variável do ID da CAN para "achar" o caso certo
     {
     case EK304CAN_ID_RPM:
       //RPM
-      sensors[SENSOR_ROTATION_ID].valor = frame.data[1];
-      sensors[SENSOR_ROTATION_ID].valor = sensors[SENSOR_ROTATION_ID].valor << 8;
-      sensors[SENSOR_ROTATION_ID].valor += frame.data[0];
+      sensors[SENSOR_ROTATION_ID].valor = frame.data[1];                          //Nessa é necessário dar shift dos bits
+      sensors[SENSOR_ROTATION_ID].valor = sensors[SENSOR_ROTATION_ID].valor << 8; //Para ter o pacote com os dados certos
+      sensors[SENSOR_ROTATION_ID].valor += frame.data[0];                         //Importante para ter uma resolução boa
 
-      setAckTime(sensors[SENSOR_ROTATION_ID].origin);
+      setAckTime(sensors[SENSOR_ROTATION_ID].origin); //Essa função serve para "resetar" o timer da ACK, se tem algum módulo desconectado ele vai acusar no display
 
       Serial.println(sensors[SENSOR_ROTATION_ID].valor);
       break;
@@ -1316,7 +1327,7 @@ void taskCAN()
       break;
     case EK304CAN_ID_GEAR_POSITION:
       //Gear Position
-      sensors[SENSOR_GEAR_ID].valor = frame.data[4];
+      sensors[SENSOR_GEAR_ID].valor = frame.data[0];
 
       setAckTime(sensors[SENSOR_GEAR_ID].origin);
       break;
@@ -1342,13 +1353,13 @@ void taskCAN()
       break;
     case EK304CAN_ID_OIL_PRESSURE:
       //OilPressure
-      sensors[SENSOR_OIL_PRESSURE_ID].valor = frame.data[2];
+      sensors[SENSOR_OIL_PRESSURE_ID].valor = frame.data[0];
 
       setAckTime(sensors[SENSOR_OIL_PRESSURE_ID].origin);
       break;
     case EK304CAN_ID_OIL_TEMPERATURE:
       //OilTemp
-      sensors[SENSOR_OIL_TEMPERATURE_ID].valor = frame.data[2];
+      sensors[SENSOR_OIL_TEMPERATURE_ID].valor = frame.data[0];
 
       setAckTime(sensors[SENSOR_OIL_TEMPERATURE_ID].origin);
       break;
@@ -1360,19 +1371,19 @@ void taskCAN()
       break;
     case EK304CAN_ID_AIR_TEMP:
       //AirTemp
-      sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].valor = frame.data[4];
+      sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].valor = frame.data[0];
 
       setAckTime(sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].origin);
       break;
     case EK304CAN_ID_WATER_TEMPERATURE:
       //WaterTemp
-      sensors[SENSOR_WATER_TEMPERATURE_ID].valor = frame.data[3];
+      sensors[SENSOR_WATER_TEMPERATURE_ID].valor = frame.data[0];
 
       setAckTime(sensors[SENSOR_WATER_TEMPERATURE_ID].origin);
       break;
     case EK304CAN_ID_TPS:
       //TPS
-      sensors[SENSOR_TPS_ID].valor = frame.data[2];
+      sensors[SENSOR_TPS_ID].valor = frame.data[0];
 
       setAckTime(sensors[SENSOR_TPS_ID].origin);
       break;
@@ -1401,7 +1412,7 @@ void taskCAN()
 
     //Aqui começa a parte da gravação no cartão SD
 
-    if (!sdCard.Write(STRING_FILE_NAME, ""))
+    if (!sdCard.Write(stringFileName, ""))
     {
       flagErrorSDCardFull = true;
     }
@@ -1410,20 +1421,20 @@ void taskCAN()
       flagErrorSDCardInit = false;
     }
 
-    sdCard.Write(STRING_FILE_NAME, ";");
-    sdCard.Write(STRING_FILE_NAME, String(millis())); //Grava o tempo decorrido
-    sdCard.Write(STRING_FILE_NAME, ";");
+    sdCard.Write(stringFileName, ";");
+    sdCard.Write(stringFileName, String(millis())); //Grava o tempo decorrido
+    sdCard.Write(stringFileName, ";");
 
-    sdCard.Write(STRING_FILE_NAME, String(frame.can_id)); //Grava os dados da CAN
-    sdCard.Write(STRING_FILE_NAME, ";");
-    sdCard.Write(STRING_FILE_NAME, String(frame.can_dlc));
-    sdCard.Write(STRING_FILE_NAME, ";");
+    sdCard.Write(stringFileName, String(frame.can_id)); //Grava os dados da CAN
+    sdCard.Write(stringFileName, ";");
+    sdCard.Write(stringFileName, String(frame.can_dlc));
+    sdCard.Write(stringFileName, ";");
     for (int i = 0; i < frame.can_dlc; i++)
     {
-      sdCard.Write(STRING_FILE_NAME, String(frame.data[i]));
-      sdCard.Write(STRING_FILE_NAME, ";");
+      sdCard.Write(stringFileName, String(frame.data[i]));
+      sdCard.Write(stringFileName, ";");
     }
-    sdCard.Write(STRING_FILE_NAME, ";\r\n"); //Quebra a linha
+    sdCard.Write(stringFileName, ";\r\n"); //Quebra a linha
 
     Serial.print(frame.can_id, HEX);
     Serial.print(frame.can_dlc, HEX);
@@ -1503,7 +1514,7 @@ void setupDisplay()
 void setupCAN()
 {
   SPI.begin();
-  CAN_Init(&mcp2515, CAN_100KBPS);
+  CAN_Init(&mcp2515, CAN_100KBPS); //CAN em 100KBPS, consultar tabela "canbusload" para mais informações
   tmrCanTestEnabled = false;
 }
 
@@ -1540,6 +1551,14 @@ void setupInit()
 
 void setupSDModule()
 {
+  int testNumber = EEPROM.read(SD_CARD_EEPROM_ADDRESS);
+
+  stringFileName = "test";
+  stringFileName.concat(testNumber);
+  stringFileName.concat(".csv");
+
+  EEPROM.write(SD_CARD_EEPROM_ADDRESS, testNumber + 1);
+
   if (!sdCard.Init(SPI_CS_SD))
   {
     Serial.println("Erro ao iniciar");

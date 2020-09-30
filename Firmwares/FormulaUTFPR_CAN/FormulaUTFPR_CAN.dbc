@@ -36,6 +36,21 @@ BS_:
 BU_: Gateway RearData_Module04 FrontData_Module01 MegaSniffer_Module02 EngineDataExtra_Module03
 
 
+BO_ 1032 Gyro03: 6 RearData_Module04
+ SG_ Gyro03Z : 32|12@1- (0.125,0) [-256|255.875] "deg/s"  Gateway
+ SG_ Gyro03Y : 16|12@1- (0.125,0) [-256|255.875] "deg/s"  Gateway
+ SG_ Gyro03X : 0|12@1- (0.125,0) [-256|255.875] "deg/s"  Gateway
+
+BO_ 1031 Gyro02: 6 FrontData_Module01
+ SG_ Gyro02Z : 32|12@1- (0.125,0) [-256|255.875] "deg/s"  Gateway
+ SG_ Gyro02Y : 16|12@1- (0.125,0) [-256|255.875] "deg/s"  Gateway
+ SG_ Gyro02X : 0|12@1- (0.125,0) [-256|255.875] "deg/s"  Gateway
+
+BO_ 1030 Gyro01: 6 FrontData_Module01
+ SG_ Gyro01Z : 32|12@1- (0.125,0) [-256|255.875] "deg/s"  Gateway
+ SG_ Gyro01Y : 16|12@1- (0.125,0) [-256|255.875] "deg/s"  Gateway
+ SG_ Gyro01X : 0|12@1- (0.125,0) [-256|255.875] "deg/s"  Gateway
+
 BO_ 258 MAP: 2 MegaSniffer_Module02
  SG_ MAP : 0|10@1+ (250,0) [0|255750] "Pa"  Gateway
 
@@ -65,9 +80,9 @@ BO_ 1029 SuspRear: 4 RearData_Module04
  SG_ SuspRearRight : 16|10@1+ (1,0) [0|0] ""  Gateway
  SG_ SuspRearLeft : 0|10@1+ (1,0) [0|0] ""  Gateway
 
-BO_ 516 Pressure: 8 EngineDataExtra_Module03
+BO_ 516 Pressure: 1 EngineDataExtra_Module03
 
-BO_ 517 Temperature: 8 EngineDataExtra_Module03
+BO_ 517 Temperature: 1 EngineDataExtra_Module03
 
 BO_ 514 GearPosition: 1 EngineDataExtra_Module03
  SG_ GearPosition : 0|8@1+ (1,0) [0|6] "Gear"  Gateway
@@ -76,31 +91,22 @@ BO_ 257 Lambda: 1 MegaSniffer_Module02
  SG_ Lambda : 0|8@1+ (0.01,0) [0|2.55] ""  Gateway
 
 BO_ 2 RPM: 2 MegaSniffer_Module02
- SG_ RPM : 0|16@1+ (51,0) [0|13005] "RPM"  Gateway
+ SG_ RPM : 0|16@1+ (1,0) [0|13000] "RPM"  Gateway
 
 BO_ 1027 Acc03: 6 RearData_Module04
- SG_ Gyro03Z : 40|8@1- (2,0) [-256|254] "deg/s"  Gateway
- SG_ Gyro03Y : 32|8@1- (2,0) [-256|254] "deg/s"  Gateway
- SG_ Gyro03X : 24|8@1- (2,0) [-256|254] "deg/s"  Gateway
- SG_ Acc03Z : 16|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
- SG_ Acc03Y : 8|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
- SG_ Acc03X : 0|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
+ SG_ Acc03Z : 32|12@1- (0.002,0) [-4.096|4.094] "G"  Gateway
+ SG_ Acc03Y : 16|12@1- (0.002,0) [-4.096|4.094] "G"  Gateway
+ SG_ Acc03X : 0|12@1- (0.002,0) [-4.096|4.094] "G"  Gateway
 
 BO_ 1026 Acc02: 6 FrontData_Module01
- SG_ Gyro02Z : 40|8@1- (2,0) [-256|254] "deg/s"  Gateway
- SG_ Gyro02Y : 32|8@1- (2,0) [-256|254] "deg/s"  Gateway
- SG_ Gyro02X : 24|8@1- (2,0) [-256|254] "deg/s"  Gateway
- SG_ Acc02Z : 16|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
- SG_ Acc02Y : 8|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
- SG_ Acc02X : 0|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
+ SG_ Acc02Z : 32|12@1- (0.002,0) [-4.096|4.094] "G"  Gateway
+ SG_ Acc02Y : 16|12@1- (0.002,0) [-4.096|4.094] "G"  Gateway
+ SG_ Acc02X : 0|12@1- (0.002,0) [-4.096|4.094] "G"  Gateway
 
 BO_ 1025 Acc01: 6 FrontData_Module01
- SG_ Gyro01Z : 40|8@1- (2,0) [-256|254] "deg/s"  Gateway
- SG_ Gyro01Y : 32|8@1- (2,0) [-256|254] "deg/s"  Gateway
- SG_ Gyro01X : 24|8@1- (2,0) [-256|254] "deg/s"  Gateway
- SG_ Acc01Z : 16|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
- SG_ Acc01Y : 8|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
- SG_ Acc01X : 0|8@1- (0.008,0) [-1.024|1.016] "G"  Gateway
+ SG_ Acc01Z : 32|12@1- (0.002,0) [-4.096|4.094] "G"  Gateway
+ SG_ Acc01Y : 16|12@1- (0.002,0) [-4.096|4.094] "G"  Gateway
+ SG_ Acc01X : 0|12@1- (0.002,0) [-4.096|4.094] "G"  Gateway
 
 
 

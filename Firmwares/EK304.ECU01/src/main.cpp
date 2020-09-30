@@ -79,20 +79,26 @@ bool tmrAcele2Enable = true;
 int tmrAcele2Count = 0;
 
 //CAN
-can_frame Modulo1;
-can_frame Modulo2;
+can_frame Modulo1Acc;
+can_frame Modulo2Acc;
+can_frame Modulo1Gyro;
+can_frame Modulo2Gyro;
 can_frame Suspensao;
 can_frame Frameack;
 MCP2515 mcp2515(10);
 
 void setup()
 {
+  digitalWrite(LED_CPU, HIGH);
+  delay(100);
+  digitalWrite(LED_CPU, LOW);
+  delay(100);
+
   setupCAN();
   setupWIRE();
 
-  pinMode(LED_BUILTIN, OUTPUT);
   SPI.begin();
-  Serial.begin(9600);
+  //Serial.begin(9600);
 
   //Configura o TimerOne
   Timer1.initialize(TMR_BASE);
@@ -184,7 +190,7 @@ void taskModu1(void)
     Gy1Y = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
     Gy1Z = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 
-    Acx1 = (Ac1X / 16384) * 100; //  Dividido por 16384 para converter os valores para 1G,
+    Acx1 = (Ac1X / 16384) * 100; //  Dividido por 16384 para converter os valores para G,
     Acy1 = (Ac1Y / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
     Acz1 = (Ac1Z / 16384) * 100; //  casas decimais.
     Gyx1 = Gy1X / 131;           //  Dividido por 131 para converter os valores para graus/s
@@ -211,31 +217,19 @@ void taskModu1(void)
     unsigned int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
     unsigned int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
 
-    Modulo1.data[0] = fAcx1 & 0xFF;
-    Modulo1.data[1] = fAcy1 & 0xFF;
-    Modulo1.data[2] = fAcz1 & 0xFF;
-    Modulo1.data[3] = fGyx1 & 0xFF;
-    Modulo1.data[4] = fGyy1 & 0xFF;
-    Modulo1.data[5] = fGyz1 & 0xFF;
-    /*
-    //PARA TESTE:
-    Serial.print("AcX = ");
-    Serial.print(fAcx1);
-    Serial.print("   AcY = ");
-    Serial.print(fAcy1);
-    Serial.print("   AcZ = ");
-    Serial.print(fAcz1);
-    Serial.print("   GyX = ");
-    Serial.print(fGyx1);
-    Serial.print("   GyY = ");
-    Serial.print(fGyy1);
-    Serial.print("   GyZ = ");
-    Serial.println(fGyz1);
-    Serial.println(" ");
-*/
+    Modulo1Acc.data[0] = fAcx1 & 0xFF;
+    Modulo1Acc.data[1] = fAcy1 & 0xFF;
+    Modulo1Acc.data[2] = fAcz1 & 0xFF;
+    Modulo1Gyro.data[3] = fGyx1 & 0xFF;
+    Modulo1Gyro.data[4] = fGyy1 & 0xFF;
+    Modulo1Gyro.data[5] = fGyz1 & 0xFF;
+
     tmrAcele1Overflow = false;
 
-    mcp2515.sendMessage(&Modulo1); // envia os dados de um CAN_Frame na CAN
+    mcp2515.sendMessage(&Modulo1Acc);  // envia os dados de um CAN_Frame na CAN
+    mcp2515.sendMessage(&Modulo1Gyro); // envia os dados de um CAN_Frame na CAN
+    tmrBlinkEnable = true;
+    tmrBlinkOverflow = true;
   }
 }
 
@@ -285,30 +279,20 @@ void taskModu2(void)
     unsigned int fGyy2 = map(iiGyy2, 0, 500, 0, 250);
     unsigned int fGyz2 = map(iiGyz2, 0, 500, 0, 250);
 
-    Modulo2.data[0] = fAcx2 & 0xFF;
-    Modulo2.data[1] = fAcy2 & 0xFF;
-    Modulo2.data[2] = fAcz2 & 0xFF;
-    Modulo2.data[3] = fGyx2 & 0xFF;
-    Modulo2.data[4] = fGyy2 & 0xFF;
-    Modulo2.data[5] = fGyz2 & 0xFF;
-    /*
-    //PARA TESTE:
-    Serial.print("Ac2X = ");
-    Serial.print(fAcx2);
-    Serial.print("   Ac2Y = ");
-    Serial.print(fAcy2);
-    Serial.print("   Ac2Z = ");
-    Serial.print(fAcz2);
-    Serial.print("   Gy2X = ");
-    Serial.print(fGyx2);
-    Serial.print("   Gy2Y = ");
-    Serial.print(fGyy2);
-    Serial.print("   Gy2Z = ");
-    Serial.println(fGyz2);
-*/
+    Modulo2Acc.data[0] = fAcx2 & 0xFF;
+    Modulo2Acc.data[1] = fAcy2 & 0xFF;
+    Modulo2Acc.data[2] = fAcz2 & 0xFF;
+    Modulo2Gyro.data[3] = fGyx2 & 0xFF;
+    Modulo2Gyro.data[4] = fGyy2 & 0xFF;
+    Modulo2Gyro.data[5] = fGyz2 & 0xFF;
+
     tmrAcele2Overflow = false;
 
-    mcp2515.sendMessage(&Modulo2); // envia os dados de um CAN_Frame na CAN
+    mcp2515.sendMessage(&Modulo2Acc);  // envia os dados de um CAN_Frame na CAN
+    mcp2515.sendMessage(&Modulo2Gyro); // envia os dados de um CAN_Frame na CAN
+
+    tmrBlinkEnable = true;
+    tmrBlinkOverflow = true;
   }
 }
 
@@ -325,6 +309,9 @@ void taskSusp(void)
     Suspensao.data[0] = (unsigned int)posicaoSuspDireita & 0xFF;  //Armazena o valor da leitura no primeiro byte do frame da suspensao
     Suspensao.data[1] = (unsigned int)posicaoSuspEsquerda & 0xFF; //Armazena o valor da leitura no segundo byte do frame da suspensao
 
+    tmrBlinkEnable = true;
+    tmrBlinkOverflow = true;
+
     tmrSuspOverflow = false;
 
     mcp2515.sendMessage(&Suspensao); // envia os dados de um CAN_Frame na CAN
@@ -334,19 +321,6 @@ void taskSusp(void)
 //ENVIO CAN
 void taskCAN(void)
 {
-  /*
-  if (CAN_ReceiveData(&mcp2515, &Frameack) == MCP2515::ERROR_OK) // armazena em um CAN_Frame os dados recebidos da CAN
-  {
-    if (Frameack.id.tipo == EK304CAN_ID_TYPE_ACK)
-    {
-      if (Frameack.id.endDestino == EK304CAN_ID_ADDRESS_THIS)
-      {
-        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_GTW); // envia um ACK na CAN
-        tmrBlinkEnable = true;
-      }
-    }
-  }
-  */
 }
 
 //Funções
@@ -360,32 +334,21 @@ void setupCAN()
   digitalWrite(LED_BUILTIN, LOW);
 
   //MODULO 1
-  Modulo1.can_id = EK304CAN_ID_ADDRESS_ACC_01;
-  Modulo1.can_dlc = 6;
-  /*
-  Modulo1.msg.data[0] = fAcx1;
-  Modulo1.msg.data[1] = fAcy1;
-  Modulo1.msg.data[2] = fAcz1;
-  Modulo1.msg.data[3] = fGyx1;
-  Modulo1.msg.data[4] = fGyy1;
-  Modulo1.msg.data[5] = fGyz1;
-  */
+  Modulo1Acc.can_id = EK304CAN_ID_ACC_01;
+  Modulo1Acc.can_dlc = 6;
+
+  Modulo1Gyro.can_id = EK304CAN_ID_GYRO_01;
+  Modulo1Gyro.can_dlc = 6;
 
   //MODULO 2
-  Modulo2.can_id = EK304CAN_ID_ADDRESS_ACC_02;
-  Modulo2.can_dlc = 6;
+  Modulo2Acc.can_id = EK304CAN_ID_ACC_02;
+  Modulo2Acc.can_dlc = 6;
 
-  /*
-  Modulo2.msg.data[0] = fAcx2;
-  Modulo2.msg.data[1] = fAcy2;
-  Modulo2.msg.data[2] = fAcz2;
-  Modulo2.msg.data[3] = fGyx2;
-  Modulo2.msg.data[4] = fGyy2;
-  Modulo2.msg.data[5] = fGyz2;
-  */
+  Modulo2Gyro.can_id = EK304CAN_ID_GYRO_02;
+  Modulo2Gyro.can_dlc = 6;
 
   //SUSPENSAO
-  Suspensao.can_id = EK304CAN_ID_ADDRESS_SUSP_FRONT;
+  Suspensao.can_id = EK304CAN_ID_SUSP_FRONT;
   Suspensao.can_dlc = 2;
 
   /*
@@ -399,13 +362,27 @@ void setupWIRE()
 
   Wire.begin(); //Inicia I2C
 
-  Wire.beginTransmission(MPU1); //Inicia transmissao para o endereco do Modulo 1
-  Wire.write(0x6B);
-  Wire.write(0);
+  //------MPU1
+
+  Wire.beginTransmission(MPU1); //Inicia transmissao para o endereco do Modulo 1  Wire.write(0x6B);
+  Wire.write(0x6B);             //make the reset (place a 0 into the 6B register)
+  Wire.write(0x00);
+  Wire.endTransmission(true); //end the transmission
+  //Gyro config
+  Wire.beginTransmission(MPU1); //begin, Send the slave adress (in this case 68)
+  Wire.write(0x1B);             //We want to write to the GYRO_CONFIG register (1B hex)
+  Wire.write(0x10);             //Set the register bits as 00010000 (1000dps full scale)
+  Wire.endTransmission(true);   //End the transmission with the gyro
+  //Acc config
+  Wire.beginTransmission(MPU1); //Start communication with the address found during search.
+  Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register
+  Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
   Wire.endTransmission(true);
+
+  //------MPU2
 
   Wire.beginTransmission(MPU2); //Inicia transmissao para o endereco do Modulo 2
   Wire.write(0x6B);
-  Wire.write(0);
+  Wire.write(0x00);
   Wire.endTransmission(true);
 }

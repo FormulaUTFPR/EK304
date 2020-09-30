@@ -110,12 +110,18 @@ MCP2515 mcp2515(CAN_CS); //Pino 10 é o Slave
 void setup()
 {
 
-  setupCAN();
+  pinMode(LED_CPU, OUTPUT);
 
-  Serial.begin(9600);
+  digitalWrite(LED_CPU, HIGH);
+  delay(100);
+  digitalWrite(LED_CPU, LOW);
+  delay(100);
+
   SPI.begin();
 
-  pinMode(LED_CPU, OUTPUT);
+  setupCAN();
+
+  //Serial.begin(9600);
 
   pinMode(PRESSAO_DO_AR, INPUT);
   pinMode(TEMPERATURA_DO_AR, INPUT);
@@ -134,6 +140,9 @@ void setup()
 
   Timer1.initialize(TMR_BASE);
   Timer1.attachInterrupt(taskScheduler);
+
+  can_gear.can_id = 0x202;
+  can_gear.can_dlc = 1;
 }
 
 void loop()
@@ -151,26 +160,6 @@ void loop()
 //Comunicação com a CAN
 void taskCanCommunication(void)
 {
-  /*
-  if (CAN_ReceiveData(&mcp2515, &frameRe) == MCP2515::ERROR_OK)
-  {
-    if (frameRe.id.tipo == EK304CAN_ID_TYPE_ACK) //envia pacote do tipo ACK para o Gateway
-    {
-      if (frameRe.id.endDestino == EK304CAN_ID_ADDRESS_THIS)
-      {
-        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_GTW);
-        digitalWrite(LED_CPU, !digitalRead(LED_CPU));
-      }
-    }
-  }
-  */
-  /*
-  if (tmrCansendOverflow)
-  {
-    CAN_SendData(&mcp2515, &frame);
-    tmrCansendOverflow = false;
-  }
-  */
 }
 
 //Faz leitura do sensor da tempertarura do ar
@@ -236,6 +225,7 @@ void taskIndicadorDaMarcha(void)
     tmrIndicadorDaMarchaOverflow = false;
 
     mcp2515.sendMessage(&can_gear);
+    tmrBlinkOverflow = true;
   }
 }
 
@@ -262,14 +252,24 @@ int gearSelect()
 {
   int count;
   int gear;
+  int engaged = 0;
 
   for (count = INDICADOR_DA_PRIMEIRA_MARCHA; count <= INDICADOR_DA_SEXTA_MARCHA; count++)
   {
     //A ligação do hardware é importante para dar certo
     if (!digitalRead(count))
     {
-      gear = count - (INDICADOR_DA_PRIMEIRA_MARCHA - 3);
+      gear = count - (INDICADOR_DA_PRIMEIRA_MARCHA - 1);
     }
+    else
+    {
+      engaged++;
+    }
+  }
+  if (engaged==6)
+  {
+    gear = 0;
+    engaged = 0;
   }
 
   return gear;
@@ -350,6 +350,7 @@ void taskBlink(void)
   digitalWrite(LED_CPU, tmrBlinkEnable);
   if (tmrBlinkOverflow)
   {
+    digitalWrite(LED_CPU, tmrBlinkEnable);
     tmrBlinkOverflow = false;
     tmrBlinkEnable = false;
   }

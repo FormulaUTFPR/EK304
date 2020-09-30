@@ -8,7 +8,7 @@
 #include <EK304SETTINGS.h>
 //Declaração de tarefas
 
-void taskSpeed(void);
+unsigned int taskSpeed();
 void taskPressure(void);
 void taskCAN(void);
 void taskAcc(void);
@@ -20,9 +20,14 @@ void taskBlink(void);
 //Protótipos de funções
 
 void pulseHappened(void);
-void setupInit(); //PinModes, inicializar outras coisas, entre outros
-void setupCAN();  //Setup da CAN, pacotes e parâmetros
-void setupACC();  //Setup dos acelerômetros
+void setupInit();              //PinModes, inicializar outras coisas, entre outros
+void taskVehicleStopped(void); //Cria task do sensor de velocidade
+void setupCAN();               //Setup da CAN, pacotes e parâmetros
+void setupACC();               //Setup dos acelerômetros
+
+//Protótipos de funções de tratamento
+
+void ISR_SPEED(); //Tratamento da interrupção do pino do leitor de velocidade
 
 //Definição das portas
 
@@ -69,6 +74,9 @@ bool tmrBlinkOverflow = false;
 bool tmrBlinkEnable = false;
 int tmrBlinkCount = 0;
 
+bool flagSpeed = false; //Cria uma flag para dizer que o evento pulso do sensor de velocidade ocorreu
+int numPulses = 0;      //Cria uma variável para armazenar a quantidade de pulsos que ocorreram antes da função ser tratada
+
 //Pinos da CAN - pinagem do modulo mcp2515
 
 #define CAN_SCK 13
@@ -97,9 +105,10 @@ can_frame canSuspRear;
 #define MAX_READ_PRES 921 //Leitura máxima de 4,5v --Ajustar
 #define MIN_PRES 0        //Valor min em bar
 #define MAX_PRES 10       //Valor máx em bar
+#define NUM_CONST 1       //Valor para dividir o sensor de velocidade para obter a velocidade
 
 #define TMR_BASE 100000     //Temporizador base para o Timer1
-#define TMR_CANSEND 500000  //Chamar a função da CAN a cada 0,5 segundos
+#define TMR_CANSEND 300000  //Chamar a função da CAN a cada 0,5 segundos
 #define TMR_TEMP 1000000    //Leitura da temperatura a cada 0,1 segundo
 #define TMR_PRESSURE 100000 //Leitura da pressão a cada 0,1 segundo
 #define TMR_SUSP 100000     //Leitura dos dados da suspensão 0,1 segundo
@@ -107,35 +116,34 @@ can_frame canSuspRear;
 #define TMR_BLINK 100000    //Chamar a função para piscar o LED do módulo
 
 //Declaração de variaveis globais
-
-unsigned long long timeDif; //Valor da diferenca de tempo entre dois pulsos
-unsigned int average;       //Media entre alguns velocidades para ter um valor com menos interferencias
-unsigned long freq;         //Frequencia não suavizada
-unsigned long rawSpeed;     //Velocidade nao suavizada - o suavizado é a media
-unsigned long soma;         //Soma dos periodos para fazer a media
-int counter;                //contador para fazer a media
-unsigned long initialTime;  //Tempo em Microsegundos em que ocorreu o pulso
+unsigned long InitialTime; //Tempo em Microsegundos em que ocorreu o pulso
+unsigned long TimeDif;     //Valor da diferenca de tempo entre dois pulsos
 
 MCP2515 mcp2515(CAN_CS);
 
 void setup()
 {
+  digitalWrite(LED_CPU, HIGH);
+  delay(100);
+  digitalWrite(LED_CPU, LOW);
+  delay(100);
+
   //Serial.begin(9600);
   //Serial.println("setup");
 
   setupInit(); //PinModes, inicializar outras coisas, entre outros
   setupCAN();  //Setup da CAN, pacotes e parâmetros
-  setupACC();  //Setup dos acelerômetros
+  //setupACC();  //Setup dos acelerômetros
 
   Timer1.initialize(TMR_BASE);           //Inicializar a biblioteca Timer1 com o tempo de TMR_BASE
   Timer1.attachInterrupt(taskScheduler); //Define o escalonador
 
   //Variaveis para ativação das tarefas
 
-  tmrCANSendSpeedEnable = false;
-  tmrTempEnable = true;
+  tmrCANSendSpeedEnable = true;
+  tmrTempEnable = false;
   tmrSuspEnable = false;
-  tmrPressureEnable = true;
+  tmrPressureEnable = false;
   tmrAccEnable = false;
 
   //Serial.println("Acabou o setup");
@@ -156,30 +164,35 @@ void loop()
 /*--------------------- TASKS ----------------------*/
 /*--------------------------------------------------*/
 
-void taskSpeed(void)
+unsigned int taskSpeed()
 {
-  if (counter >= SAMPLE_QTTY) //Checa se o contador estorou
+  unsigned long TimeDif; //Valor da diferenca de tempo entre dois pulsos
+  unsigned int average;  //Media entre alguns RPMs para ter um valor com menos interferencias
+  unsigned long RPM;     //RPM nao suavizado - o suavizado é a media
+  unsigned int counter;  //Contador para fazer a media
+
+  if (flagSpeed)
   {
-    timeDif = micros() - initialTime; //Calcula a diferenca de tempo entre dois pulsos
-    freq = 1000000 / timeDif;         //Faz o perídodo virar frequencia
-    rawSpeed = freq * 60;             //Multiplica por 60 a frequencia para ter rotacoes por MINUTO
-    average = rawSpeed * counter;     //Multiplica a velocidade por (idealmente) SAMPLE_QTTY para ter a media entre os SAMPLE_QTTY periodos
-    average = average / MAGNET_QTTY;  //Divide a media pelo numero de imãs na roda fonica
+    flagSpeed = false;   //Desativa a flag que chama a função
+    counter = numPulses; //Coloca o valor de numPulses numa variável que não pertence ao interrupt
+    numPulses = 0;       //Faz o numero de pulsos que ocorreu voltar para 0
 
-    //average = average / MAGNET_QTTY; //Caso seja necessario, colocar numero de imas na roda em que as leituras são feitas
+    //Calcula os pulsos para virar rotação por min
 
-    //Serial.println(average);
+    TimeDif = micros() - InitialTime; //Calcula a diferenca de tempo entre dois pulsos
+    RPM = 60000000 / TimeDif;         //Faz o perídodo virar frequencia e multiplica por 60 a frequencia para ter rotacoes por MINUTO
+    average = RPM * counter;          //Multiplica o RPM por (idealmente) NUM_AMOSTRAGEM para ter a media entre os NUM_AMOSTRAGEM periodos
+    average = average / NUM_CONST;    //Divide a media pelo numero de centelhas numa revolução
 
-    canSpeed.data[0] = average; //Coloca o valor da média no pacote da CAN
-
-    counter = 0;            //faz o contador voltar para 1
-    initialTime = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
+    InitialTime = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
   }
   else
   {
-    counter++; //Incrementa o contador
+    average = 0; //Caso a flag não esteja true é porque não teve pulso, ou seja, rotação
   }
-} //Acaba a tarefa taskSpeed
+
+  return average;
+} //Acaba a getRPM
 
 void taskTemp(void)
 {
@@ -248,24 +261,11 @@ void taskSusp(void)
 
 void taskCAN(void)
 {
-  /*
-  if (CAN_ReceiveData(&mcp2515, &canACK) == MCP2515::ERROR_OK)
-  {
-    if (canACK.id.tipo == EK304CAN_ID_TYPE_ACK)
-    {
-      if (canACK.id.endDestino == EK304CAN_ID_ADDRESS_THIS)
-      {
-        CAN_SendACK(&mcp2515, EK304CAN_ID_ADDRESS_GTW);
-        tmrBlinkEnable = true;
-      }
-    }
-  }
-  */
   if (tmrCANSendSpeedOverflow) //Tirar essa parte depois da mudança dos ids da CAN
   {
     //Envios
 
-    //CAN_SendData(&mcp2515, &canOTHER);
+    canSpeed.data[0] = taskSpeed();
 
     mcp2515.sendMessage(&canSpeed);
 
@@ -322,23 +322,6 @@ void taskAcc(void) //Tarefa do acelerometro
 
     mcp2515.sendMessage(&canACEL);
 
-    /*
-    //PARA TESTE:
-    Serial.print("AcX = ");
-    Serial.print(fAcx1);
-    Serial.print("   AcY = ");
-    Serial.print(fAcy1);
-    Serial.print("   AcZ = ");
-    Serial.print(fAcz1);
-    Serial.print("   GyX = ");
-    Serial.print(fGyx1);
-    Serial.print("   GyY = ");
-    Serial.print(fGyy1);
-    Serial.print("   GyZ = ");
-    Serial.println(fGyz1);
-    Serial.println(" ");
-    */
-
     tmrAccOverflow = false;
 
     tmrBlinkEnable = true;
@@ -353,17 +336,17 @@ void setupInit()
   Wire.begin(); //Inicia I2C
   //Serial.begin(9600);
 
-  //Serial.println("Aehoo");
+  //Serial.println("Setup");
 
   //Modos das entradas
 
-  pinMode(PIN_SPEED, INPUT_PULLUP);    //Toda vez que tem uma subida chama a tarefa
-  pinMode(PIN_PRESSURE, INPUT_PULLUP); // ------------------------------------------------ checar o motivo de ser pullup
+  pinMode(PIN_SPEED, INPUT_PULLUP); //Toda vez que tem uma subida chama a tarefa
+  pinMode(PIN_PRESSURE, INPUT);
   pinMode(PIN_OIL_TEMP, INPUT);
   pinMode(PIN_RIGHT_SUSP, INPUT);
   pinMode(PIN_LEFT_SUSP, INPUT);
-  pinMode(LED_CPU, OUTPUT);                                             //LED do módulo
-  attachInterrupt(digitalPinToInterrupt(PIN_SPEED), taskSpeed, RISING); //Quando o sensor passa de LOW pra HIGH, chama a funcao taskPulso
+  pinMode(LED_CPU, OUTPUT);                                              //LED do módulo
+  attachInterrupt(digitalPinToInterrupt(PIN_SPEED), ISR_SPEED, FALLING); //Quando o sensor passa de HIGH pra LOW, chama a funcao taskPulso
 }
 
 void setupCAN()
@@ -477,3 +460,11 @@ void taskBlink(void)
 }
 
 //Outras funções
+
+// TRATAMENTO DE INTERRUPÇÕES
+
+void ISR_SPEED(void) //ISR para quando há pulso
+{
+  flagSpeed = true;
+  numPulses++; //É feio fazer isso em ISR heheh, ela pode interromper a função que está usando essa variável no momento e aí falha catastrófica
+}
