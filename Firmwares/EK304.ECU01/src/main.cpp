@@ -153,7 +153,6 @@ void taskScheduler(void)
   {
     tmrAcele2Count++;
     if (tmrAcele2Count >= TMR_ACELE2 / TMR_BASE)
-      ;
     {
       tmrAcele2Count = 0;
       tmrAcele2Overflow = true;
