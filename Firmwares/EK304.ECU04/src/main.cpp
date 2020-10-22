@@ -87,6 +87,7 @@ int numPulses = 0;      //Cria uma variável para armazenar a quantidade de puls
 //Criar pacotes da CAN
 
 can_frame canACEL; //Frame pro acelerometro
+can_frame canGYRO; //Frame pro giroscopio
 can_frame canOilPressure;
 can_frame canOilTemp;
 can_frame canSpeed;
@@ -245,11 +246,11 @@ void taskSusp(void)
 
     unsigned int sender2 = analogRead(PIN_RIGHT_SUSP);
 
-    canSuspRear.data[1] = sender1 & 0xFF << 8;
-    canSuspRear.data[0] = sender1 & 0xFF;
+    canSuspRear.data[0] = (sender1>>8) & 0xFF;
+    canSuspRear.data[1] = sender1 & 0x03;
 
-    canSuspRear.data[3] = sender2 & 0xFF << 8;
-    canSuspRear.data[2] = sender2 & 0xFF;
+    canSuspRear.data[2] = (sender2>>8) & 0xFF;
+    canSuspRear.data[3] = sender2 & 0x03;
 
     mcp2515.sendMessage(&canSuspRear);
 
@@ -313,14 +314,24 @@ void taskAcc(void) //Tarefa do acelerometro
     unsigned int fGyy1 = map((Gyy1 + 250), 0, 500, 0, 250); // Essa escala se refere a -250 a 250 graus/s. // Aproximadamente 250 se refere a 250 graus/s.
     unsigned int fGyz1 = map((Gyz1 + 250), 0, 500, 0, 250); // Aproximadamente 0 se refere a -250 graus/s.
 
-    canACEL.data[0] = fAcx1 & 0xFF;
-    canACEL.data[1] = fAcy1 & 0xFF;
-    canACEL.data[2] = fAcz1 & 0xFF;
-    canACEL.data[3] = fGyx1 & 0xFF;
-    canACEL.data[4] = fGyy1 & 0xFF;
-    canACEL.data[5] = fGyz1 & 0xFF;
+    canACEL.data[0] = (fAcx1>>8) & 0xFF;
+    canACEL.data[1] = fAcx1 & 0x0F;
+    canACEL.data[2] = (fAcy1>>8) & 0xFF;
+    canACEL.data[3] = fAcy1 & 0x0F;
+    canACEL.data[4] = (fAcz1>>8) & 0xFF;
+    canACEL.data[5] = fAcz1 & 0x0F;
+
+
+    canGYRO.data[0] = (fGyx1>>8) & 0xFF;
+    canGYRO.data[1] = fGyx1 & 0x0F;
+    canGYRO.data[2] = (fGyy1>>8) & 0xFF;
+    canGYRO.data[3] = fGyy1 & 0x0F;
+    canGYRO.data[4] = (fGyz1>>8) & 0xFF;
+    canGYRO.data[5] = fGyz1 & 0x0F;
 
     mcp2515.sendMessage(&canACEL);
+
+    mcp2515.sendMessage(&canGYRO);
 
     tmrAccOverflow = false;
 
