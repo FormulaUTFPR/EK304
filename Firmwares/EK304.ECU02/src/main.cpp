@@ -130,10 +130,10 @@ MCP2515 mcp2515(CAN_CS);
 #define TMR_BLINK 100000
 #define TMR_ANALOGICO 100000
 #define TMR_AIR_TEMP 1000000
-#define TMR_LAMBDA 50000
-#define TMR_MAP 50000
-#define TMR_RPM 20000
-#define TMR_TPS 50000
+#define TMR_LAMBDA 100000
+#define TMR_MAP 100000
+#define TMR_RPM 100000
+#define TMR_TPS 100000
 #define TMR_WATER_TEMP 1000000
 #define TMR_CHECK_RPM_STOP 1500000
 #define TMR_BLINK_RUN 100000
@@ -180,6 +180,11 @@ void setup()
     tmrCANSendRPMEnable = false;
     tmrCANSendTPSEnable = true;
     tmrCANSendWaterTempEnable = true;
+    
+    digitalWrite(LED_CPU, HIGH);
+    delay(100);
+    digitalWrite(LED_CPU, LOW);
+    delay(100);
 }
 
 void loop()
