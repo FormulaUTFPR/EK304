@@ -39,7 +39,7 @@
 #define SENSOR_ROTATION_ID 0x02
 #define SENSOR_MOTOR_TEMPERATURE_ID 0x03
 #define SENSOR_GEAR_ID 0x04
-#define SENSOR_GPS_LATITUDE_ID 0x05
+#define SENSOR_GPS_LATITUDE_ID  0x05
 #define SENSOR_GPS_LONGITUDE_ID 0x06
 #define SENSOR_GPS_ALTITUDE_ID 0x07
 #define SENSOR_GPS_FIX_ID 0x08
@@ -52,10 +52,11 @@
 #define SENSOR_LAMBDA_ID 0x0F
 #define SENSOR_OIL_PRESSURE_ID 0x10
 #define SENSOR_OIL_TEMPERATURE_ID 0x11
-#define SENSOR_REAR_LEFT_SUSPENSION_ID 0x12
+#define SENSOR_REAR_LEFT_SUSPENSION_ID  0x12
 #define SENSOR_REAR_RIGHT_SUSPENSION_ID 0x13
 #define SENSOR_FRONT_LEFT_SUSPENSION_ID 0x14
 #define SENSOR_FRONT_RIGHT_SUSPENSION_ID 0x15
+
 
 // parâmetros dos sensores
 #define SENSOR_GEAR_MAX 6
@@ -1319,6 +1320,15 @@ void taskCAN()
     case EK304CAN_ID_ACC_03:
       //Acelerômetro 3
       break;
+        case EK304CAN_ID_GYRO_01:
+      //Giroscopio 1
+      break;
+    case EK304CAN_ID_GYRO_02:
+      //Giroscopio 2
+      break;
+    case EK304CAN_ID_GYRO_03:
+      //Giroscopio 3
+      break;
     case EK304CAN_ID_LAMBA:
       //Lambda
       sensors[SENSOR_LAMBDA_ID].valor = frame.data[0];
@@ -1340,8 +1350,8 @@ void taskCAN()
     case EK304CAN_ID_PRESSURE:
       //Pressure
       break;
-    case EK304CAN_ID_SUSP_REAR:
-      //SuspRear
+    case EK304CAN_ID_SUSP_FRONT:
+      //SuspFront
       sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = frame.data[1] / (2.8 + 1 / 30);
       sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor << 8;
       sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor += frame.data[0] / (2.8 + 1 / 30);
@@ -1387,7 +1397,7 @@ void taskCAN()
 
       setAckTime(sensors[SENSOR_TPS_ID].origin);
       break;
-    case EK304CAN_ID_SUSP_FRONT: //SuspFront
+    case EK304CAN_ID_SUSP_REAR: //SuspRear
       sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = frame.data[1] / (2.8 + 1 / 30);
       sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor << 8;
       sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor += frame.data[0] / (2.8 + 1 / 30);

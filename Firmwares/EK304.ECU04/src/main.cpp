@@ -370,6 +370,9 @@ void setupCAN()
   canACEL.can_id = EK304CAN_ID_ACC_03; //Define o id como o do acelerômetro 3 da CAN
   canACEL.can_dlc = 6;                 //Tamanho do pacote
 
+  canGYRO.can_id= EK304CAN_ID_GYRO_03
+  canGYRO.can_dlc= 6;
+
   canOilPressure.can_id = EK304CAN_ID_OIL_PRESSURE;
   canOilPressure.can_dlc = 1;
 
