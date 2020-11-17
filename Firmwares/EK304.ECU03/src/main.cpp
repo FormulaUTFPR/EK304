@@ -141,7 +141,7 @@ void setup()
   Timer1.initialize(TMR_BASE);
   Timer1.attachInterrupt(taskScheduler);
 
-  can_gear.can_id = 0x202;
+  can_gear.can_id = EK304CAN_ID_GEAR_POSITION;
   can_gear.can_dlc = 1;
 }
 
