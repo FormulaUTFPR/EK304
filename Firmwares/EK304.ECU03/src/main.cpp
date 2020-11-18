@@ -102,6 +102,14 @@ bool tmrBlinkOverflow = false;
 bool tmrBlinkEnable = false;
 int tmrBlinkCount = 0;
 
+bool estadoLed = false;
+
+/**************************************************************************************************************************************/
+/* DECLARACAO DE TIMERS                                                                                                   */
+/**************************************************************************************************************************************/
+#define TMR_BLINK 100000   //Timer para piscar o led
+
+
 /**************************************************************************************************************************************/
 /* CONFIGURAÇÕES DOS PERIFÉRICOS                                                                                                      */
 /**************************************************************************************************************************************/
@@ -224,7 +232,9 @@ void taskIndicadorDaMarcha(void)
 
     tmrIndicadorDaMarchaOverflow = false;
 
-    mcp2515.sendMessage(&can_gear);
+    if (mcp2515.sendMessage(&can_gear) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+        tmrBlinkEnable = false;
+    }
     tmrBlinkOverflow = true;
   }
 }
@@ -343,15 +353,25 @@ void taskScheduler(void)
       tmrIndicadorDaMarchaOverflow = true;
     }
   }
+
+  if (tmrBlinkEnable)
+  {
+    tmrBlinkCount++;
+    if (tmrBlinkCount >= TMR_BLINK / TMR_BASE)
+    {
+      tmrBlinkCount = 0;
+      tmrBlinkOverflow = true;
+    }
+  }
+
 }
 
 void taskBlink(void)
 {
-  digitalWrite(LED_CPU, tmrBlinkEnable);
   if (tmrBlinkOverflow)
   {
-    digitalWrite(LED_CPU, tmrBlinkEnable);
+    digitalWrite(LED_CPU, estadoLed);
+    estadoLed != estadoLed;
     tmrBlinkOverflow = false;
-    tmrBlinkEnable = false;
   }
 }
