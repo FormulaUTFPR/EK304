@@ -45,6 +45,7 @@ void taskBlink(void);
 #define TMR_SUSP 100000    //Timer para gravar dados da suspensão
 #define TMR_ACELE1 100000  //Timer para gravar e enviar dados do acelerômetro 1
 #define TMR_ACELE2 100000  //Timer para gravar e enviar dados do acelerômetro 2
+#define TMR_BLINK 100000   //Timer para piscar o led
 
 //Variáveis Globais
 
@@ -55,6 +56,7 @@ float Acx2, Acy2, Acz2, Gyx2, Gyy2, Gyz2;
 float posicaoSuspDireita, posicaoSuspEsquerda;
 int fAcx1, fAcy1, fAcz1, fAcx2, fAcy2, fAcz2;
 int fGyx1, fGyy1, fGyz1, fGyx2, fGyy2, fGyz2;
+bool estadoLed = false;
 
 //Variáveis para controle de Tarefas
 
@@ -153,21 +155,30 @@ void taskScheduler(void)
   {
     tmrAcele2Count++;
     if (tmrAcele2Count >= TMR_ACELE2 / TMR_BASE)
-      ;
     {
       tmrAcele2Count = 0;
       tmrAcele2Overflow = true;
+    }
+  }
+
+  if (tmrBlinkEnable)
+  {
+    tmrBlinkCount++;
+    if (tmrBlinkCount >= TMR_BLINK / TMR_BASE)
+    {
+      tmrBlinkCount = 0;
+      tmrBlinkOverflow = true;
     }
   }
 }
 
 void taskBlink(void)
 {
-  digitalWrite(LED_CPU, tmrBlinkEnable);
   if (tmrBlinkOverflow)
   {
+    digitalWrite(LED_CPU, estadoLed);
+    estadoLed != estadoLed;
     tmrBlinkOverflow = false;
-    tmrBlinkEnable = false;
   }
 }
 
@@ -178,7 +189,9 @@ void taskModu1(void)
   {
     Wire.beginTransmission(MPU1);     //Transmissao
     Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
-    Wire.endTransmission(false);      //Finaliza transmissao
+    if (Wire.endTransmission(false)!= 0){    //Finaliza transmissao
+      tmrBlinkEnable = false;
+    }     
     Wire.requestFrom(MPU1, 14, true); //Solicita os dados do sensor
 
     //Armazenamento dos valores do acelerometro e giroscopio
@@ -226,10 +239,12 @@ void taskModu1(void)
 
     tmrAcele1Overflow = false;
 
-    mcp2515.sendMessage(&Modulo1Acc);  // envia os dados de um CAN_Frame na CAN
-    mcp2515.sendMessage(&Modulo1Gyro); // envia os dados de um CAN_Frame na CAN
-    tmrBlinkEnable = true;
-    tmrBlinkOverflow = true;
+    if (mcp2515.sendMessage(&Modulo1Acc) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+        tmrBlinkEnable = false;
+    }
+    if (mcp2515.sendMessage(&Modulo1Gyro) != MCP2515::ERROR::ERROR_OK){ // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    } 
   }
 }
 
@@ -240,7 +255,9 @@ void taskModu2(void)
   {
     Wire.beginTransmission(MPU2);     //Transmissao
     Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
-    Wire.endTransmission(false);      //Finaliza transmissao
+    if (Wire.endTransmission(false) != 0){      //Finaliza transmissao
+      tmrBlinkEnable = false;
+    }
     Wire.requestFrom(MPU2, 14, true); //Solicita os dados do sensor
 
     //Armazenamento dos valores do acelerometro e giroscopio
@@ -288,11 +305,13 @@ void taskModu2(void)
 
     tmrAcele2Overflow = false;
 
-    mcp2515.sendMessage(&Modulo2Acc);  // envia os dados de um CAN_Frame na CAN
-    mcp2515.sendMessage(&Modulo2Gyro); // envia os dados de um CAN_Frame na CAN
+    if (mcp2515.sendMessage(&Modulo2Acc) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+        tmrBlinkEnable = false;
+    }
+    if (mcp2515.sendMessage(&Modulo2Gyro) != MCP2515::ERROR::ERROR_OK){ // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    } 
 
-    tmrBlinkEnable = true;
-    tmrBlinkOverflow = true;
   }
 }
 
@@ -309,12 +328,11 @@ void taskSusp(void)
     Suspensao.data[0] = (unsigned int)posicaoSuspDireita & 0xFF;  //Armazena o valor da leitura no primeiro byte do frame da suspensao
     Suspensao.data[1] = (unsigned int)posicaoSuspEsquerda & 0xFF; //Armazena o valor da leitura no segundo byte do frame da suspensao
 
-    tmrBlinkEnable = true;
-    tmrBlinkOverflow = true;
-
     tmrSuspOverflow = false;
 
-    mcp2515.sendMessage(&Suspensao); // envia os dados de um CAN_Frame na CAN
+    if (mcp2515.sendMessage(&Suspensao) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+        tmrBlinkEnable = false;
+    }
   }
 }
 

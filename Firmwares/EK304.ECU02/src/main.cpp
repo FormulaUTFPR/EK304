@@ -41,6 +41,7 @@ int PressureValue;
 int TPSValue;
 int WaterTemp;
 int AirTemp;
+bool estadoLed = false; 
 
 //Declaração de variaveis
 unsigned long InitialTime; //Tempo em Microsegundos em que ocorreu o pulso
@@ -137,6 +138,8 @@ MCP2515 mcp2515(CAN_CS);
 #define TMR_WATER_TEMP 1000000
 #define TMR_CHECK_RPM_STOP 1500000
 #define TMR_BLINK_RUN 100000
+#define TMR_BLINK 100000   //Timer para piscar o led
+
 
 //Outras variaveis globais
 
@@ -289,7 +292,9 @@ void taskCANSend(void)
         int AirTempReadValue = analogRead(SensorTEMPAR);
         can_AirTemp.data[0] = (-1 / 0.04) * log((AirTempReadValue * 1000) / (7021 * (5 - AirTempReadValue))); //Converte para KPA
 
-        mcp2515.sendMessage(&can_AirTemp);
+        if (mcp2515.sendMessage(&can_AirTemp) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+            tmrBlinkEnable = false;
+        }
         tmrCANSendAirTempOverflow = false;
 
         tmrBlinkEnable = true;
@@ -300,7 +305,9 @@ void taskCANSend(void)
         int LambdaReadValue = analogRead(SensorSON);
         can_lambda.data[0] = (((LambdaReadValue - 0.2) * 0.65 / 4.6) + 0.65) * 100; //valor X100 para torna-lo inteiro //Converte a para fator Lambda
 
-        mcp2515.sendMessage(&can_lambda);
+        if (mcp2515.sendMessage(&can_lambda) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+            tmrBlinkEnable = false;
+        }
         tmrCANSendLambdaOverflow = false;
 
         tmrBlinkEnable = true;
@@ -313,7 +320,9 @@ void taskCANSend(void)
 
         can_MAP.data[0] = (MAPvalue - 0.204) * 0.018819;
 
-        mcp2515.sendMessage(&can_MAP);
+        if (mcp2515.sendMessage(&can_MAP) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+            tmrBlinkEnable = false;
+        }
         tmrCANSendMAPOverflow = false;
 
         tmrBlinkEnable = true;
@@ -326,7 +335,9 @@ void taskCANSend(void)
         can_RPM.data[1] = average & 0xFF << 8;
         can_RPM.data[0] = average & 0xFF;
 
-        mcp2515.sendMessage(&can_RPM);
+        if (mcp2515.sendMessage(&can_RPM) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+            tmrBlinkEnable = false;
+        }
         tmrCANSendRPMOverflow = false;
 
         tmrBlinkEnable = true;
@@ -347,7 +358,9 @@ void taskCANSend(void)
         }
         //
 
-        mcp2515.sendMessage(&can_TPS);
+        if (mcp2515.sendMessage(&can_TPS) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+            tmrBlinkEnable = false;
+        }
         tmrCANSendTPSOverflow = false;
 
         tmrBlinkEnable = true;
@@ -358,7 +371,9 @@ void taskCANSend(void)
         int WaterTempReadValue = analogRead(SensorTEMPAG);
         can_WaterTemp.data[0] = (-1 / 0.038) * log((WaterTempReadValue * 1000) / (7656.8 * (5 - WaterTempReadValue))); //Converte para °C
 
-        mcp2515.sendMessage(&can_WaterTemp);
+        if (mcp2515.sendMessage(&can_WaterTemp) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+            tmrBlinkEnable = false;
+        }
         tmrCANSendWaterTempOverflow = false;
 
         tmrBlinkEnable = true;
@@ -465,10 +480,21 @@ void taskScheduler(void)
             tmrBlinkOverflow = false;
         }
     }
+    if (tmrBlinkEnable)
+    {
+        tmrBlinkCount++;
+        if (tmrBlinkCount >= TMR_BLINK / TMR_BASE)
+        {
+            tmrBlinkCount = 0;
+            tmrBlinkOverflow = true;
+        }
+    }
 }
 
 void taskBlink(void)
 {
+    digitalWrite(LED_CPU, estadoLed);
+    estadoLed != estadoLed;
     digitalWrite(LED_CPU, tmrBlinkOverflow);
 }
 

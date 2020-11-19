@@ -107,6 +107,7 @@ can_frame canSuspRear;
 #define MIN_PRES 0        //Valor min em bar
 #define MAX_PRES 10       //Valor máx em bar
 #define NUM_CONST 1       //Valor para dividir o sensor de velocidade para obter a velocidade
+bool estadoLed = false;   //variavel que define o estado do led
 
 #define TMR_BASE 100000     //Temporizador base para o Timer1
 #define TMR_CANSEND 300000  //Chamar a função da CAN a cada 0,5 segundos
@@ -114,7 +115,7 @@ can_frame canSuspRear;
 #define TMR_PRESSURE 100000 //Leitura da pressão a cada 0,1 segundo
 #define TMR_SUSP 100000     //Leitura dos dados da suspensão 0,1 segundo
 #define TMR_ACC 1000000     //Leitura dos dados do acelerômetro a cada 0,1 segundo
-#define TMR_BLINK 100000    //Chamar a função para piscar o LED do módulo
+#define TMR_BLINK 100000   //Timer para piscar o led
 
 //Declaração de variaveis globais
 unsigned long InitialTime; //Tempo em Microsegundos em que ocorreu o pulso
@@ -205,7 +206,9 @@ void taskTemp(void)
 
     canOilTemp.data[0] = sender & 0xFF;
 
-    mcp2515.sendMessage(&canOilTemp);
+    if (mcp2515.sendMessage(&canOilTemp) != MCP2515::ERROR::ERROR_OK){ // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    } 
 
     //Checar se precisa alterar para enviar via CAN
 
@@ -228,7 +231,9 @@ void taskPressure(void)
     voltage = map(analogRead(PIN_PRESSURE), MIN_READ_PRES, MAX_READ_PRES, MIN_PRES, MAX_PRES); //Faz regra de  com o valor da leitura
     canOilPressure.data[0] = (3.0 * (voltage - 0.47));                                         //Faz os cálculos para converter a tensao lida em pressao
 
-    mcp2515.sendMessage(&canOilPressure);
+    if (mcp2515.sendMessage(&canOilPressure) != MCP2515::ERROR::ERROR_OK){ // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    }
 
     tmrPressureOverflow = false;
 
@@ -252,7 +257,9 @@ void taskSusp(void)
     canSuspRear.data[2] = (sender2>>8) & 0xFF;
     canSuspRear.data[3] = sender2 & 0x03;
 
-    mcp2515.sendMessage(&canSuspRear);
+    if (mcp2515.sendMessage(&canSuspRear) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+        tmrBlinkEnable = false;
+    }
 
     tmrSuspOverflow = false;
 
@@ -268,7 +275,9 @@ void taskCAN(void)
 
     canSpeed.data[0] = taskSpeed();
 
-    mcp2515.sendMessage(&canSpeed);
+    if (mcp2515.sendMessage(&canSpeed) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
+        tmrBlinkEnable = false;
+    }
 
     tmrCANSendSpeedOverflow = false;
 
@@ -287,7 +296,9 @@ void taskAcc(void) //Tarefa do acelerometro
 
     Wire.beginTransmission(MPU1);     //Transmissao
     Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
-    Wire.endTransmission(false);      //Finaliza transmissao
+    if (Wire.endTransmission(false) != 0){      //Finaliza transmissao
+      tmrBlinkEnable = false;
+    }
     Wire.requestFrom(MPU1, 14, true); //Solicita os dados do sensor
 
     //Armazenamento dos valores do acelerometro e giroscopio
@@ -329,7 +340,9 @@ void taskAcc(void) //Tarefa do acelerometro
     canGYRO.data[4] = (fGyz1>>8) & 0xFF;
     canGYRO.data[5] = fGyz1 & 0x0F;
 
-    mcp2515.sendMessage(&canACEL);
+    if (mcp2515.sendMessage(&canACEL) != MCP2515::ERROR::ERROR_OK){ // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    } 
 
     mcp2515.sendMessage(&canGYRO);
 
@@ -395,7 +408,9 @@ void setupACC()
 
   //Inicializa o MPU-6050
   Wire.write(0);
-  Wire.endTransmission(true);
+    if (Wire.endTransmission(true) != 0){      //Finaliza transmissao
+      tmrBlinkEnable = false;
+    }
 }
 
 //Scheduler
@@ -465,11 +480,11 @@ void taskScheduler(void) //Aqui comeca o escalonador
 
 void taskBlink(void)
 {
-  digitalWrite(LED_CPU, tmrBlinkEnable);
   if (tmrBlinkOverflow)
   {
+    digitalWrite(LED_CPU, estadoLed);
+    estadoLed != estadoLed;
     tmrBlinkOverflow = false;
-    tmrBlinkEnable = false;
   }
 }
 
