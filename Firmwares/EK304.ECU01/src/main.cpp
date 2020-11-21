@@ -364,7 +364,7 @@ void taskSusp(void)
 
     Suspensao.data[0] = (unsigned int)posicaoSuspDireita & 0xFF;  //Armazena o valor da leitura no primeiro byte do frame da suspensao
     Suspensao.data[1] = (unsigned int)posicaoSuspEsquerda & 0xFF; //Armazena o valor da leitura no segundo byte do frame da suspensao
-
+                                                                                                                                                                    
     tmrSuspOverflow = false;
 
     if (mcp2515.sendMessage(&Suspensao) != MCP2515::ERROR::ERROR_OK)
@@ -427,7 +427,7 @@ void setupWIRE()
   Wire.beginTransmission(MPU1); //Start communication with the address found during search.
   Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register
   Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
-  Wire.endTransmission(true);
+  Wire.endTransmission(false);
 
   //------MPU2
   Wire.beginTransmission(MPU2); //begin, Send the slave adress (in this case 68)
@@ -443,5 +443,5 @@ void setupWIRE()
   Wire.beginTransmission(MPU2); //Start communication with the address found during search.
   Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register
   Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
-  Wire.endTransmission(true);
+  Wire.endTransmission(false);
 }

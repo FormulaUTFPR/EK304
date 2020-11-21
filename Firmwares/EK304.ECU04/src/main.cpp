@@ -77,6 +77,10 @@ int tmrBlinkCount = 0;
 bool flagSpeed = false; //Cria uma flag para dizer que o evento pulso do sensor de velocidade ocorreu
 int numPulses = 0;      //Cria uma variável para armazenar a quantidade de pulsos que ocorreram antes da função ser tratada
 
+float Ac1X, Ac1Y, Ac1Z, Gy1X, Gy1Y, Gy1Z;
+float Acx1, Acy1, Acz1, Gyx1, Gyy1, Gyz1;
+unsigned int fAcx1, fAcy1, fAcz1;
+
 //Pinos da CAN - pinagem do modulo mcp2515
 
 #define CAN_SCK 13
@@ -293,11 +297,6 @@ void taskAcc(void) //Tarefa do acelerometro
 {
   if (tmrAccOverflow)
   {
-410
-    float AcX, AcY, AcZ, GyX, GyY, GyZ;
-    unsigned int fAcx1, fAcy1, fAcz1;
-    float Acx1, Acy1, Acz1, Gyx1, Gyy1, Gyz1;
-
     Wire.beginTransmission(MPU1); //Transmissao
     Wire.write(0x3B);             //Endereco 0x3B (ACCEL_XOUT_H)
     if (Wire.endTransmission(false) != 0)
@@ -307,28 +306,40 @@ void taskAcc(void) //Tarefa do acelerometro
     Wire.requestFrom(MPU1, 14, true); //Solicita os dados do sensor
 
     //Armazenamento dos valores do acelerometro e giroscopio
-    AcX = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
-    AcY = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
-    AcZ = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
-    //Wire.read() << 8 | Wire.read();       //0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L) <- Joga fora esses dados
-    GyX = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
-    GyY = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
-    GyZ = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+    Ac1X = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
+    Ac1Y = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+    Ac1Z = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+    //Wire.read() << 8 | Wire.read();        //0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L) <- Joga fora esses dados
+    Gy1X = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+    Gy1Y = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+    Gy1Z = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 
-    Acx1 = (AcX / 16384) * 100; //  Dividido por 16384 para converter os valores para 1G,
-    Acy1 = (AcY / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
-    Acz1 = (AcZ / 16384) * 100; //  casas decimais.
-    Gyx1 = GyX / 131;           //  Dividido por 131 para converter os valores para graus/s
-    Gyy1 = GyY / 131;
-    Gyz1 = GyZ / 131;
+    Acx1 = (Ac1X / 16384) * 100; //  Dividido por 16384 para converter os valores para G,
+    Acy1 = (Ac1Y / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
+    Acz1 = (Ac1Z / 16384) * 100; //  casas decimais.
+    Gyx1 = Gy1X / 131;           //  Dividido por 131 para converter os valores para graus/s
+    Gyy1 = Gy1Y / 131;
+    Gyz1 = Gy1Z / 131;
 
-    fAcx1 = (unsigned int)map((Acx1 + 105), 0, 220, 0, 200); // Nova escala de 0 a 200.             // Aproximadamente 100 se refere a 0 G.
-    fAcy1 = (unsigned int)map((Acy1 + 105), 0, 220, 0, 200); // Essa escala se refere a -1 a 1 G.   // Aproximadamente 200 se refere a 1 G.
-    fAcz1 = (unsigned int)map((Acz1 + 105), 0, 220, 0, 200); // Aproximadamente 0 se refere a -1 G.
+    int iAcx1 = int(Acx1);    // Nova escala de 0 a 200.
+    int iAcy1 = int(Acy1);    // Essa escala se refere a -1 a 1 G.
+    int iAcz1 = int(Acz1);    // Aproximadamente 0 se refere a -1 G.
+    int iiAcx1 = iAcx1 + 105; // Aproximadamente 100 se refere a 0 G.
+    int iiAcy1 = iAcy1 + 105; // Aproximadamente 200 se refere a 1 G.
+    int iiAcz1 = iAcz1 + 105;
+    unsigned int fAcx1 = map(iiAcx1, 0, 220, 0, 200);
+    unsigned int fAcy1 = map(iiAcy1, 0, 220, 0, 200);
+    unsigned int fAcz1 = map(iiAcz1, 0, 220, 0, 200);
 
-    unsigned int fGyx1 = map((Gyx1 + 250), 0, 500, 0, 250); // Nova escala de 0 a 250.                     // Aproximadamente 125 se refere a 0 graus/s.
-    unsigned int fGyy1 = map((Gyy1 + 250), 0, 500, 0, 250); // Essa escala se refere a -250 a 250 graus/s. // Aproximadamente 250 se refere a 250 graus/s.
-    unsigned int fGyz1 = map((Gyz1 + 250), 0, 500, 0, 250); // Aproximadamente 0 se refere a -250 graus/s.
+    int iGyx1 = int(Gyx1);    // Nova escala de 0 a 250.
+    int iGyy1 = int(Gyy1);    // Essa escala se refere a -250 a 250 graus/s.
+    int iGyz1 = int(Gyz1);    // Aproximadamente 0 se refere a -250 graus/s.
+    int iiGyx1 = iGyx1 + 250; // Aproximadamente 125 se refere a 0 graus/s.
+    int iiGyy1 = iGyy1 + 250; // Aproximadamente 250 se refere a 250 graus/s.
+    int iiGyz1 = iGyz1 + 250;
+    unsigned int fGyx1 = map(iiGyx1, 0, 500, 0, 250);
+    unsigned int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
+    unsigned int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
 
     canACEL.data[0] = (fAcx1 >> 8) & 0xFF;
     canACEL.data[1] = fAcx1 & 0x0F;
