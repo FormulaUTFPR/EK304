@@ -1524,7 +1524,7 @@ void setupDisplay()
 void setupCAN()
 {
   SPI.begin();
-  CAN_Init(&mcp2515, CAN_100KBPS); //CAN em 100KBPS, consultar tabela "canbusload" para mais informações
+  CAN_Init(&mcp2515, CAN_500KBPS); //CAN em 500KBPS, consultar tabela "canbusload" para mais informações
   tmrCanTestEnabled = false;
 }
 

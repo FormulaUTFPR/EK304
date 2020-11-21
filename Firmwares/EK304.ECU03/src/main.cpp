@@ -107,8 +107,7 @@ bool estadoLed = false;
 /**************************************************************************************************************************************/
 /* DECLARACAO DE TIMERS                                                                                                   */
 /**************************************************************************************************************************************/
-#define TMR_BLINK 100000   //Timer para piscar o led
-
+#define TMR_BLINK 100000 //Timer para piscar o led
 
 /**************************************************************************************************************************************/
 /* CONFIGURAÇÕES DOS PERIFÉRICOS                                                                                                      */
@@ -141,7 +140,6 @@ void setup()
   pinMode(INDICADOR_DA_QUINTA_MARCHA, INPUT_PULLUP);
   pinMode(INDICADOR_DA_SEXTA_MARCHA, INPUT_PULLUP);
 
-  tmrCansendEnable = true;
   tmrIndicadorDaMarchaEnable = true;
   tmrPressaoDoArEnable = false;
   tmrTemperaturaDoArEnable = false;
@@ -232,8 +230,11 @@ void taskIndicadorDaMarcha(void)
 
     tmrIndicadorDaMarchaOverflow = false;
 
-    if (mcp2515.sendMessage(&can_gear) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
-        tmrBlinkEnable = false;
+    mcp2515.sendMessage(&can_gear);
+
+    if (mcp2515.sendMessage(&can_gear) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
     }
     tmrBlinkOverflow = true;
   }
@@ -251,7 +252,7 @@ void setupCAN()
 {
 
   digitalWrite(LED_CPU, HIGH);
-  CAN_Init(&mcp2515, CAN_100KBPS);
+  CAN_Init(&mcp2515, CAN_500KBPS);
   digitalWrite(LED_CPU, LOW);
 
   can_gear.can_id = EK304CAN_ID_GEAR_POSITION;
@@ -276,7 +277,7 @@ int gearSelect()
       engaged++;
     }
   }
-  if (engaged==6)
+  if (engaged == 6)
   {
     gear = 0;
     engaged = 0;
@@ -304,16 +305,6 @@ float turboPressure()
 
 void taskScheduler(void)
 {
-  if (tmrCansendEnable)
-  {
-    tmrCansendCount++;
-    if (tmrCansendCount >= TMR_CANSEND / TMR_BASE)
-    {
-      tmrCansendCount = 0;
-      tmrCansendOverflow = true;
-    }
-  }
-
   if (tmrBlinkEnable)
   {
     tmrBlinkCount++;
@@ -363,7 +354,6 @@ void taskScheduler(void)
       tmrBlinkOverflow = true;
     }
   }
-
 }
 
 void taskBlink(void)

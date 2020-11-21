@@ -34,13 +34,18 @@ void taskBlink(void);
 #define PIN_SUSP_ESQUERDA A3 //Porta para o sensor da suspensao esquerda
 #define LED_CPU 8            //Porta para o LED do módulo
 
+#define CAN_SCK 13
+#define CAN_SO 12
+#define CAN_SI 11
+#define CAN_CS 10
+
 //VARIAVEIS GLOBAIS
 #define VALOR_MIN_LEITURA_SUSP 126 //Minimo valor de leitura na porta analogica
 #define VALOR_MAX_LEITURA_SUSP 876 //Maximo valor de leitura na porta analogica
 
 // TIMERS
 
-#define TMR_BASE 100000    //Clock base para os multiplicadores
+#define TMR_BASE 100000     //Clock base para os multiplicadores
 #define TMR_CANSEND 500000 //Timer para envios da can
 #define TMR_SUSP 100000    //Timer para gravar dados da suspensão
 #define TMR_ACELE1 100000  //Timer para gravar e enviar dados do acelerômetro 1
@@ -65,7 +70,7 @@ bool tmrCansendEnable = true;
 int tmrCansendCont = 0;
 
 bool tmrBlinkOverflow = false;
-bool tmrBlinkEnable = false;
+bool tmrBlinkEnable = true;
 int tmrBlinkCount = 0;
 
 bool tmrSuspOverflow = false;
@@ -87,7 +92,8 @@ can_frame Modulo1Gyro;
 can_frame Modulo2Gyro;
 can_frame Suspensao;
 can_frame Frameack;
-MCP2515 mcp2515(10);
+
+MCP2515 mcp2515(CAN_CS); //Pino 10 é o Slave
 
 void setup()
 {
@@ -97,10 +103,26 @@ void setup()
   delay(100);
 
   setupCAN();
+  
+  digitalWrite(LED_CPU, HIGH);
+  delay(100);
+  digitalWrite(LED_CPU, LOW);
+  delay(100);
+
   setupWIRE();
+  
+  digitalWrite(LED_CPU, HIGH);
+  delay(100);
+  digitalWrite(LED_CPU, LOW);
+  delay(100);
 
   SPI.begin();
   //Serial.begin(9600);
+
+  digitalWrite(LED_CPU, HIGH);
+  delay(100);
+  digitalWrite(LED_CPU, LOW);
+  delay(100);
 
   //Configura o TimerOne
   Timer1.initialize(TMR_BASE);
@@ -108,6 +130,11 @@ void setup()
 
   tmrCansendEnable = true;
   tmrSuspEnable = true;
+
+  digitalWrite(LED_CPU, HIGH);
+  delay(100);
+  digitalWrite(LED_CPU, LOW);
+  delay(100);
 }
 
 void loop()
@@ -170,6 +197,15 @@ void taskScheduler(void)
       tmrBlinkOverflow = true;
     }
   }
+  else
+  {
+    tmrBlinkCount++;
+    if (tmrBlinkCount >= 10 * TMR_BLINK / TMR_BASE)
+    {
+      tmrBlinkCount = 0;
+      tmrBlinkOverflow = true;
+    }
+  }
 }
 
 void taskBlink(void)
@@ -187,11 +223,9 @@ void taskModu1(void)
 {
   if (tmrAcele1Overflow)
   {
-    Wire.beginTransmission(MPU1);     //Transmissao
-    Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
-    if (Wire.endTransmission(false)!= 0){    //Finaliza transmissao
-      tmrBlinkEnable = false;
-    }     
+    Wire.beginTransmission(MPU1); //Transmissao
+    Wire.write(0x3B);             //Endereco 0x3B (ACCEL_XOUT_H)
+    Wire.endTransmission(false);
     Wire.requestFrom(MPU1, 14, true); //Solicita os dados do sensor
 
     //Armazenamento dos valores do acelerometro e giroscopio
@@ -230,21 +264,24 @@ void taskModu1(void)
     unsigned int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
     unsigned int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
 
-    Modulo1Acc.data[0] = fAcx1 & 0xFF;
-    Modulo1Acc.data[1] = fAcy1 & 0xFF;
-    Modulo1Acc.data[2] = fAcz1 & 0xFF;
-    Modulo1Gyro.data[3] = fGyx1 & 0xFF;
-    Modulo1Gyro.data[4] = fGyy1 & 0xFF;
-    Modulo1Gyro.data[5] = fGyz1 & 0xFF;
+    Modulo1Acc.data[0] = (fAcx1 >> 8) & 0xFF;
+    Modulo1Acc.data[1] = fAcx1 & 0x0F;
+    Modulo1Acc.data[2] = (fAcy1 >> 8) & 0xFF;
+    Modulo1Acc.data[3] = fAcy1 & 0x0F;
+    Modulo1Acc.data[4] = (fAcz1 >> 8) & 0xFF;
+    Modulo1Acc.data[5] = fAcz1 & 0x0F;
+
+    Modulo1Gyro.data[0] = (fGyx1 >> 8) & 0xFF;
+    Modulo1Gyro.data[1] = fGyx1 & 0x0F;
+    Modulo1Gyro.data[2] = (fGyy1 >> 8) & 0xFF;
+    Modulo1Gyro.data[3] = fGyy1 & 0x0F;
+    Modulo1Gyro.data[4] = (fGyz1 >> 8) & 0xFF;
+    Modulo1Gyro.data[5] = fGyz1 & 0x0F;
 
     tmrAcele1Overflow = false;
 
-    if (mcp2515.sendMessage(&Modulo1Acc) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
-        tmrBlinkEnable = false;
-    }
-    if (mcp2515.sendMessage(&Modulo1Gyro) != MCP2515::ERROR::ERROR_OK){ // envia os dados de um CAN_Frame na CAN
-      tmrBlinkEnable = false;
-    } 
+    mcp2515.sendMessage(&Modulo1Acc);  // envia os dados de um CAN_Frame na CAN
+    mcp2515.sendMessage(&Modulo1Gyro); // envia os dados de um CAN_Frame na CAN
   }
 }
 
@@ -255,9 +292,7 @@ void taskModu2(void)
   {
     Wire.beginTransmission(MPU2);     //Transmissao
     Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
-    if (Wire.endTransmission(false) != 0){      //Finaliza transmissao
-      tmrBlinkEnable = false;
-    }
+    Wire.endTransmission(false);      //Finaliza transmissao
     Wire.requestFrom(MPU2, 14, true); //Solicita os dados do sensor
 
     //Armazenamento dos valores do acelerometro e giroscopio
@@ -296,22 +331,24 @@ void taskModu2(void)
     unsigned int fGyy2 = map(iiGyy2, 0, 500, 0, 250);
     unsigned int fGyz2 = map(iiGyz2, 0, 500, 0, 250);
 
-    Modulo2Acc.data[0] = fAcx2 & 0xFF;
-    Modulo2Acc.data[1] = fAcy2 & 0xFF;
-    Modulo2Acc.data[2] = fAcz2 & 0xFF;
-    Modulo2Gyro.data[3] = fGyx2 & 0xFF;
-    Modulo2Gyro.data[4] = fGyy2 & 0xFF;
-    Modulo2Gyro.data[5] = fGyz2 & 0xFF;
+    Modulo2Acc.data[0] = (fAcx1 >> 8) & 0xFF;
+    Modulo2Acc.data[1] = fAcx1 & 0x0F;
+    Modulo2Acc.data[2] = (fAcy1 >> 8) & 0xFF;
+    Modulo2Acc.data[3] = fAcy1 & 0x0F;
+    Modulo2Acc.data[4] = (fAcz1 >> 8) & 0xFF;
+    Modulo2Acc.data[5] = fAcz1 & 0x0F;
+
+    Modulo2Gyro.data[0] = (fGyx1 >> 8) & 0xFF;
+    Modulo2Gyro.data[1] = fGyx1 & 0x0F;
+    Modulo2Gyro.data[2] = (fGyy1 >> 8) & 0xFF;
+    Modulo2Gyro.data[3] = fGyy1 & 0x0F;
+    Modulo2Gyro.data[4] = (fGyz1 >> 8) & 0xFF;
+    Modulo2Gyro.data[5] = fGyz1 & 0x0F;
 
     tmrAcele2Overflow = false;
 
-    if (mcp2515.sendMessage(&Modulo2Acc) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
-        tmrBlinkEnable = false;
-    }
-    if (mcp2515.sendMessage(&Modulo2Gyro) != MCP2515::ERROR::ERROR_OK){ // envia os dados de um CAN_Frame na CAN
-      tmrBlinkEnable = false;
-    } 
-
+    mcp2515.sendMessage(&Modulo2Acc);  // envia os dados de um CAN_Frame na CAN
+    mcp2515.sendMessage(&Modulo2Gyro); // envia os dados de um CAN_Frame na CAN
   }
 }
 
@@ -330,8 +367,9 @@ void taskSusp(void)
 
     tmrSuspOverflow = false;
 
-    if (mcp2515.sendMessage(&Suspensao) != MCP2515::ERROR::ERROR_OK){  // envia os dados de um CAN_Frame na CAN
-        tmrBlinkEnable = false;
+    if (mcp2515.sendMessage(&Suspensao) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
     }
   }
 }
@@ -345,11 +383,10 @@ void taskCAN(void)
 
 void setupCAN()
 {
-
   //Configura a CAN
-  digitalWrite(LED_BUILTIN, HIGH);
-  CAN_Init(&mcp2515, CAN_100KBPS);
-  digitalWrite(LED_BUILTIN, LOW);
+  digitalWrite(LED_CPU, HIGH);
+  CAN_Init(&mcp2515, CAN_500KBPS);
+  digitalWrite(LED_CPU, LOW);
 
   //MODULO 1
   Modulo1Acc.can_id = EK304CAN_ID_ACC_01;
@@ -368,11 +405,6 @@ void setupCAN()
   //SUSPENSAO
   Suspensao.can_id = EK304CAN_ID_SUSP_FRONT;
   Suspensao.can_dlc = 2;
-
-  /*
-  Suspensao.msg.data[0] = posicaoSuspDireita;
-  Suspensao.msg.data[1] = posicaoSuspEsquerda;
-  */
 }
 
 void setupWIRE()
@@ -398,9 +430,18 @@ void setupWIRE()
   Wire.endTransmission(true);
 
   //------MPU2
-
-  Wire.beginTransmission(MPU2); //Inicia transmissao para o endereco do Modulo 2
-  Wire.write(0x6B);
+  Wire.beginTransmission(MPU2); //begin, Send the slave adress (in this case 68)
+  Wire.write(0x6B);             //make the reset (place a 0 into the 6B register)
   Wire.write(0x00);
+  Wire.endTransmission(true); //end the transmission
+  //Gyro config
+  Wire.beginTransmission(MPU2); //begin, Send the slave adress (in this case 68)
+  Wire.write(0x1B);             //We want to write to the GYRO_CONFIG register (1B hex)
+  Wire.write(0x10);             //Set the register bits as 00010000 (1000dps full scale)
+  Wire.endTransmission(true);   //End the transmission with the gyro
+  //Acc config
+  Wire.beginTransmission(MPU2); //Start communication with the address found during search.
+  Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register
+  Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
   Wire.endTransmission(true);
 }
