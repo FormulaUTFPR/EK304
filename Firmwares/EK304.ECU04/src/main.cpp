@@ -148,9 +148,9 @@ void setup()
 
   tmrCANSendSpeedEnable = true;
   tmrTempEnable = false;
-  tmrSuspEnable = false;
+  tmrSuspEnable = true;
   tmrPressureEnable = false;
-  tmrAccEnable = false;
+  tmrAccEnable = true;
 
   //Serial.println("Acabou o setup");
 
