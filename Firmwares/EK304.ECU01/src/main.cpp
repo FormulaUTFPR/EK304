@@ -82,7 +82,7 @@ bool tmrAcele1Enable = true;
 int tmrAcele1Count = 0;
 
 bool tmrAcele2Overflow = false;
-bool tmrAcele2Enable = true;
+bool tmrAcele2Enable = false;
 int tmrAcele2Count = 0;
 
 //CAN
@@ -429,6 +429,7 @@ void setupWIRE()
   Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
   Wire.endTransmission(false);
 
+/*
   //------MPU2
   Wire.beginTransmission(MPU2); //begin, Send the slave adress (in this case 68)
   Wire.write(0x6B);             //make the reset (place a 0 into the 6B register)
@@ -444,4 +445,5 @@ void setupWIRE()
   Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register
   Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
   Wire.endTransmission(false);
+  */
 }

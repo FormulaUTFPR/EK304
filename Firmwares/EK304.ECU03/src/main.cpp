@@ -40,6 +40,7 @@
 #define TMR_PRESSAO_AR 1000000
 #define TMR_TEMP_AR 1000000
 #define TMR_INDICADOR_MARCHA 100000
+#define TMR_ACELE2 100000
 
 /**************************************************************************************************************************************/
 /* IMPORTAÇÃO DAS BIBLIOTECAS                                                                                                         */
@@ -49,6 +50,7 @@
 #include <EK304CAN.h>
 #include <math.h>
 #include <TimerOne.h>
+#include <Wire.h>
 
 /**************************************************************************************************************************************/
 /* DECLARAÇÃO DAS TAREFAS, SEMÁFOROS E FILAS                                                                                          */
@@ -69,6 +71,7 @@ void taskBlink(void);
 void setupCAN();
 int gearSelect();
 float turboPressure();
+void setupWIRE();
 
 /**************************************************************************************************************************************/
 /* DECLARAÇÃO DE TIPOS NÃO PRIMITIVOS                                                                                                 */
@@ -102,6 +105,10 @@ bool tmrBlinkOverflow = false;
 bool tmrBlinkEnable = false;
 int tmrBlinkCount = 0;
 
+bool tmrAcele2Overflow = false;
+bool tmrAcele2Enable = false;
+int tmrAcele2Count = 0;
+
 bool estadoLed = false;
 
 /**************************************************************************************************************************************/
@@ -113,6 +120,9 @@ bool estadoLed = false;
 /* CONFIGURAÇÕES DOS PERIFÉRICOS                                                                                                      */
 /**************************************************************************************************************************************/
 MCP2515 mcp2515(CAN_CS); //Pino 10 é o Slave
+
+//endereços dos módulos
+const int MPU2 = 0x69; // Se o pino ADO for conectado em 5V ou 3,3V o modulo assume esse endereço
 
 void setup()
 {
@@ -354,6 +364,16 @@ void taskScheduler(void)
       tmrBlinkOverflow = true;
     }
   }
+
+  if (tmrAcele2Enable)
+  {
+    tmrAcele2Count++;
+    if (tmrAcele2Count >= TMR_ACELE2 / TMR_BASE)
+    {
+      tmrAcele2Count = 0;
+      tmrAcele2Overflow = true;
+    }
+  }
 }
 
 void taskBlink(void)
@@ -364,4 +384,23 @@ void taskBlink(void)
     estadoLed != estadoLed;
     tmrBlinkOverflow = false;
   }
+}
+
+void setupWIRE(){
+  Wire.begin(); //Inicia I2C
+
+  Wire.beginTransmission(MPU2); //begin, Send the slave adress (in this case 68)
+  Wire.write(0x6B);             //make the reset (place a 0 into the 6B register)
+  Wire.write(0x00);
+  Wire.endTransmission(true); //end the transmission
+  //Gyro config
+  Wire.beginTransmission(MPU2); //begin, Send the slave adress (in this case 68)
+  Wire.write(0x1B);             //We want to write to the GYRO_CONFIG register (1B hex)
+  Wire.write(0x10);             //Set the register bits as 00010000 (1000dps full scale)
+  Wire.endTransmission(true);   //End the transmission with the gyro
+  //Acc config
+  Wire.beginTransmission(MPU2); //Start communication with the address found during search.
+  Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register
+  Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
+  Wire.endTransmission(false);
 }
