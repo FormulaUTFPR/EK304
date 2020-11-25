@@ -80,6 +80,9 @@ void setupWIRE();
 CAN_Frame frame;
 CAN_Frame frameRe;
 
+can_frame Modulo2Acc;
+can_frame Modulo2Gyro;
+
 can_frame can_gear;
 
 /**************************************************************************************************************************************/
@@ -124,6 +127,13 @@ MCP2515 mcp2515(CAN_CS); //Pino 10 é o Slave
 //endereços dos módulos
 const int MPU2 = 0x69; // Se o pino ADO for conectado em 5V ou 3,3V o modulo assume esse endereço
 
+//Declaração de variáveis do acelerômetro
+
+float Ac2X, Ac2Y, Ac2Z, Gy2X, Gy2Y, Gy2Z;
+float Acx2, Acy2, Acz2, Gyx2, Gyy2, Gyz2;
+int fAcx2, fAcy2, fAcz2;
+int fGyx2, fGyy2, fGyz2;
+
 void setup()
 {
 
@@ -151,14 +161,22 @@ void setup()
   pinMode(INDICADOR_DA_SEXTA_MARCHA, INPUT_PULLUP);
 
   tmrIndicadorDaMarchaEnable = true;
-  tmrPressaoDoArEnable = false;
-  tmrTemperaturaDoArEnable = false;
+  tmrPressaoDoArEnable = false;     //NÃO ATIVAR -- SENSORES DESCONECTADOS
+  tmrTemperaturaDoArEnable = false; //NÃO ATIVAR -- SENSORES DESCONECTADOS
+  tmrAcele2Enable = true;
 
   Timer1.initialize(TMR_BASE);
   Timer1.attachInterrupt(taskScheduler);
 
   can_gear.can_id = EK304CAN_ID_GEAR_POSITION;
   can_gear.can_dlc = 1;
+
+  //MODULO 2
+  Modulo2Acc.can_id = EK304CAN_ID_ACC_02;
+  Modulo2Acc.can_dlc = 6;
+
+  Modulo2Gyro.can_id = EK304CAN_ID_GYRO_02;
+  Modulo2Gyro.can_dlc = 6;
 }
 
 void loop()
@@ -224,6 +242,73 @@ void taskPressaoDoAr(void)
   }
 }
 
+//SEGUNDO MODULO GY-521
+void taskModu2(void)
+{
+  if (tmrAcele2Overflow)
+  {
+    Wire.beginTransmission(MPU2);     //Transmissao
+    Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
+    Wire.endTransmission(false);      //Finaliza transmissao
+    Wire.requestFrom(MPU2, 14, true); //Solicita os dados do sensor
+
+    //Armazenamento dos valores do acelerometro e giroscopio
+    Ac2X = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
+    Ac2Y = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+    Ac2Z = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+    //Wire.read() << 8 | Wire.read();        //0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L) <- Joga fora esses dados
+    Gy2X = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+    Gy2Y = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+    Gy2Z = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+
+    Acx2 = (Ac2X / 16384) * 100; //  Dividido por 16384 para converter os valores para 1G,
+    Acy2 = (Ac2Y / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
+    Acz2 = (Ac2Z / 16384) * 100; //  casas decimais,
+    Gyx2 = Gy2X / 131;           //  Dividido por 131 para converter os valores para graus/s.
+    Gyy2 = Gy2Y / 131;
+    Gyz2 = Gy2Z / 131;
+
+    int iAcx2 = int(Acx2);    // Nova escala de 0 a 200
+    int iAcy2 = int(Acy2);    // Essa escala se refere a -1 a 1 G
+    int iAcz2 = int(Acz2);    // Aproximadamente 0 se refere a -1 G.
+    int iiAcx2 = iAcx2 + 120; // Aproximadamente 100 se refere a 0 G.
+    int iiAcy2 = iAcy2 + 120; // Aproximadamente 200 se refere a 1 G.
+    int iiAcz2 = iAcz2 + 120;
+    unsigned int fAcx2 = map(iiAcx2, 0, 215, 0, 200);
+    unsigned int fAcy2 = map(iiAcy2, 0, 215, 0, 200);
+    unsigned int fAcz2 = map(iiAcz2, 0, 205, 0, 200);
+
+    int iGyx2 = int(Gyx2);    // Nova escala de 0 a 250.
+    int iGyy2 = int(Gyy2);    // Essa escala se refere a -250 a 250 graus/s.
+    int iGyz2 = int(Gyz2);    // Aproximadamente 0 se refere a -250 graus/s.
+    int iiGyx2 = iGyx2 + 250; // Aproximadamente 125 se refere a 0 graus/s.
+    int iiGyy2 = iGyy2 + 250; // Aproximadamente 250 se refere a 250 graus/s.
+    int iiGyz2 = iGyz2 + 250;
+    unsigned int fGyx2 = map(iiGyx2, 0, 500, 0, 250);
+    unsigned int fGyy2 = map(iiGyy2, 0, 500, 0, 250);
+    unsigned int fGyz2 = map(iiGyz2, 0, 500, 0, 250);
+
+    Modulo2Acc.data[0] = (fAcx1 >> 8) & 0xFF;
+    Modulo2Acc.data[1] = fAcx1 & 0x0F;
+    Modulo2Acc.data[2] = (fAcy1 >> 8) & 0xFF;
+    Modulo2Acc.data[3] = fAcy1 & 0x0F;
+    Modulo2Acc.data[4] = (fAcz1 >> 8) & 0xFF;
+    Modulo2Acc.data[5] = fAcz1 & 0x0F;
+
+    Modulo2Gyro.data[0] = (fGyx1 >> 8) & 0xFF;
+    Modulo2Gyro.data[1] = fGyx1 & 0x0F;
+    Modulo2Gyro.data[2] = (fGyy1 >> 8) & 0xFF;
+    Modulo2Gyro.data[3] = fGyy1 & 0x0F;
+    Modulo2Gyro.data[4] = (fGyz1 >> 8) & 0xFF;
+    Modulo2Gyro.data[5] = fGyz1 & 0x0F;
+
+    tmrAcele2Overflow = false;
+
+    mcp2515.sendMessage(&Modulo2Acc);  // envia os dados de um CAN_Frame na CAN
+    mcp2515.sendMessage(&Modulo2Gyro); // envia os dados de um CAN_Frame na CAN
+  }
+}
+
 //Faz a leitura da posição da marcha
 void taskIndicadorDaMarcha(void)
 {
@@ -264,9 +349,6 @@ void setupCAN()
   digitalWrite(LED_CPU, HIGH);
   CAN_Init(&mcp2515, CAN_500KBPS);
   digitalWrite(LED_CPU, LOW);
-
-  can_gear.can_id = EK304CAN_ID_GEAR_POSITION;
-  can_gear.can_dlc = 1;
 }
 
 int gearSelect()
@@ -386,7 +468,8 @@ void taskBlink(void)
   }
 }
 
-void setupWIRE(){
+void setupWIRE()
+{
   Wire.begin(); //Inicia I2C
 
   Wire.beginTransmission(MPU2); //begin, Send the slave adress (in this case 68)
