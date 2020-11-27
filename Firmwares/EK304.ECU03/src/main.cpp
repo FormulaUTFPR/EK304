@@ -39,8 +39,8 @@
 #define TMR_BLINK 100000
 #define TMR_PRESSAO_AR 1000000
 #define TMR_TEMP_AR 1000000
-#define TMR_INDICADOR_MARCHA 100000
-#define TMR_ACELE2 100000
+#define TMR_INDICADOR_MARCHA 200000
+#define TMR_ACELE2 500000
 
 /**************************************************************************************************************************************/
 /* IMPORTAÇÃO DAS BIBLIOTECAS                                                                                                         */
@@ -63,6 +63,7 @@ void taskPressaoDoAr(void);
 void taskIndicadorDaMarcha(void);
 void taskScheduler(void);
 void taskBlink(void);
+void taskModu2(void);
 
 /**************************************************************************************************************************************/
 /* PROTÓTIPO DAS FUNÇÕES                                                                                                              */
@@ -125,11 +126,11 @@ bool estadoLed = false;
 MCP2515 mcp2515(CAN_CS); //Pino 10 é o Slave
 
 //endereços dos módulos
-const int MPU2 = 0x69; // Se o pino ADO for conectado em 5V ou 3,3V o modulo assume esse endereço
+const int MPU2 = 0x68; // Se o pino ADO for conectado em 5V ou 3,3V o modulo assume esse endereço
 
 //Declaração de variáveis do acelerômetro
 
-float Ac2X, Ac2Y, Ac2Z, Gy2X, Gy2Y, Gy2Z;
+float Ac2X, Ac2Y, Ac2Z, Tmp, Gy2X, Gy2Y, Gy2Z;
 float Acx2, Acy2, Acz2, Gyx2, Gyy2, Gyz2;
 int fAcx2, fAcy2, fAcz2;
 int fGyx2, fGyy2, fGyz2;
@@ -144,11 +145,11 @@ void setup()
   digitalWrite(LED_CPU, LOW);
   delay(100);
 
+  Serial.begin(9600);
+
   SPI.begin();
 
   setupCAN();
-
-  //Serial.begin(9600);
 
   pinMode(PRESSAO_DO_AR, INPUT);
   pinMode(TEMPERATURA_DO_AR, INPUT);
@@ -164,6 +165,7 @@ void setup()
   tmrPressaoDoArEnable = false;     //NÃO ATIVAR -- SENSORES DESCONECTADOS
   tmrTemperaturaDoArEnable = false; //NÃO ATIVAR -- SENSORES DESCONECTADOS
   tmrAcele2Enable = true;
+  tmrBlinkEnable = true;
 
   Timer1.initialize(TMR_BASE);
   Timer1.attachInterrupt(taskScheduler);
@@ -177,6 +179,8 @@ void setup()
 
   Modulo2Gyro.can_id = EK304CAN_ID_GYRO_02;
   Modulo2Gyro.can_dlc = 6;
+
+  //Serial.println("Acabou o Setup");
 }
 
 void loop()
@@ -186,6 +190,7 @@ void loop()
   taskPressaoDoAr();
   taskIndicadorDaMarcha();
   taskBlink();
+  taskModu2();
 }
 
 /**************************************************************************************************************************************/
@@ -247,28 +252,38 @@ void taskModu2(void)
 {
   if (tmrAcele2Overflow)
   {
-    Wire.beginTransmission(MPU2);     //Transmissao
-    Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
-    Wire.endTransmission(false);      //Finaliza transmissao
+    //Serial.println("Acele");
+    Wire.beginTransmission(MPU2); //Transmissao
+    //Serial.println("Acele2");
+    Wire.write(0x3B);             //Endereco 0x3B (ACCEL_XOUT_H)
+    //Serial.println("Acele3");
+    Wire.endTransmission(false);
+    //Serial.println("Acele4");
     Wire.requestFrom(MPU2, 14, true); //Solicita os dados do sensor
+    //Serial.println("Acele5");
 
     //Armazenamento dos valores do acelerometro e giroscopio
     Ac2X = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
     Ac2Y = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
     Ac2Z = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+    //Tmp=Wire.read()<<8|Wire.read();
     //Wire.read() << 8 | Wire.read();        //0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L) <- Joga fora esses dados
     Gy2X = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
     Gy2Y = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
     Gy2Z = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 
     Acx2 = (Ac2X / 16384) * 100; //  Dividido por 16384 para converter os valores para 1G,
+    //Serial.println(Acx2);
     Acy2 = (Ac2Y / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
+    //Serial.println(Acy2);
     Acz2 = (Ac2Z / 16384) * 100; //  casas decimais,
+    //Serial.println(Acz2);
     Gyx2 = Gy2X / 131;           //  Dividido por 131 para converter os valores para graus/s.
     Gyy2 = Gy2Y / 131;
     Gyz2 = Gy2Z / 131;
 
     int iAcx2 = int(Acx2);    // Nova escala de 0 a 200
+    //Serial.println(iAcx2);
     int iAcy2 = int(Acy2);    // Essa escala se refere a -1 a 1 G
     int iAcz2 = int(Acz2);    // Aproximadamente 0 se refere a -1 G.
     int iiAcx2 = iAcx2 + 120; // Aproximadamente 100 se refere a 0 G.
@@ -288,24 +303,38 @@ void taskModu2(void)
     unsigned int fGyy2 = map(iiGyy2, 0, 500, 0, 250);
     unsigned int fGyz2 = map(iiGyz2, 0, 500, 0, 250);
 
-    Modulo2Acc.data[0] = (fAcx1 >> 8) & 0xFF;
-    Modulo2Acc.data[1] = fAcx1 & 0x0F;
-    Modulo2Acc.data[2] = (fAcy1 >> 8) & 0xFF;
-    Modulo2Acc.data[3] = fAcy1 & 0x0F;
-    Modulo2Acc.data[4] = (fAcz1 >> 8) & 0xFF;
-    Modulo2Acc.data[5] = fAcz1 & 0x0F;
+   /* Serial.println(fAcx2);
+    Serial.println(fAcy2);
+    Serial.println(fAcz2);*/
 
-    Modulo2Gyro.data[0] = (fGyx1 >> 8) & 0xFF;
-    Modulo2Gyro.data[1] = fGyx1 & 0x0F;
-    Modulo2Gyro.data[2] = (fGyy1 >> 8) & 0xFF;
-    Modulo2Gyro.data[3] = fGyy1 & 0x0F;
-    Modulo2Gyro.data[4] = (fGyz1 >> 8) & 0xFF;
-    Modulo2Gyro.data[5] = fGyz1 & 0x0F;
+    Modulo2Acc.data[0] = (fAcx2 >> 8) & 0xFF;
+    Modulo2Acc.data[1] = fAcx2 & 0x0F;
+    Modulo2Acc.data[2] = (fAcy2 >> 8) & 0xFF;
+    Modulo2Acc.data[3] = fAcy2 & 0x0F;
+    Modulo2Acc.data[4] = (fAcz2 >> 8) & 0xFF;
+    Modulo2Acc.data[5] = fAcz2 & 0x0F;
+
+    double teste1 = Modulo2Acc.data[1] * 256;
+    double teste2 = teste1 + Modulo2Acc.data[0];
+    Serial.println(teste2);
+
+    Modulo2Gyro.data[0] = (fGyx2 >> 8) & 0xFF;
+    Modulo2Gyro.data[1] = fGyx2 & 0x0F;
+    Modulo2Gyro.data[2] = (fGyy2 >> 8) & 0xFF;
+    Modulo2Gyro.data[3] = fGyy2 & 0x0F;
+    Modulo2Gyro.data[4] = (fGyz2 >> 8) & 0xFF;
+    Modulo2Gyro.data[5] = fGyz2 & 0x0F;
 
     tmrAcele2Overflow = false;
 
-    mcp2515.sendMessage(&Modulo2Acc);  // envia os dados de um CAN_Frame na CAN
-    mcp2515.sendMessage(&Modulo2Gyro); // envia os dados de um CAN_Frame na CAN
+    if (mcp2515.sendMessage(&Modulo2Acc) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    } 
+    if (mcp2515.sendMessage(&Modulo2Gyro) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    }
   }
 }
 
@@ -361,7 +390,7 @@ int gearSelect()
   {
     //A ligação do hardware é importante para dar certo
     if (!digitalRead(count))
-    {
+    {     //oi
       gear = count - (INDICADOR_DA_PRIMEIRA_MARCHA - 1);
     }
     else
@@ -445,7 +474,11 @@ void taskScheduler(void)
       tmrBlinkCount = 0;
       tmrBlinkOverflow = true;
     }
+  }else
+  {
+    //Serial.println("Deu ruim,");
   }
+  
 
   if (tmrAcele2Enable)
   {
@@ -469,21 +502,30 @@ void taskBlink(void)
 }
 
 void setupWIRE()
-{
-  Wire.begin(); //Inicia I2C
+{  
+  //Programação dos acelerômetros
 
+  Wire.begin();
+  Wire.beginTransmission(MPU2);
+  Wire.write(0x6B); 
+   
+  //Inicializa o MPU-6050
+  Wire.write(0); 
+  Wire.endTransmission(true);
+/*
   Wire.beginTransmission(MPU2); //begin, Send the slave adress (in this case 68)
   Wire.write(0x6B);             //make the reset (place a 0 into the 6B register)
   Wire.write(0x00);
-  Wire.endTransmission(true); //end the transmission
+  Wire.endTransmission(false); //end the transmission
   //Gyro config
   Wire.beginTransmission(MPU2); //begin, Send the slave adress (in this case 68)
   Wire.write(0x1B);             //We want to write to the GYRO_CONFIG register (1B hex)
   Wire.write(0x10);             //Set the register bits as 00010000 (1000dps full scale)
-  Wire.endTransmission(true);   //End the transmission with the gyro
+  Wire.endTransmission(false);   //End the transmission with the gyro
   //Acc config
   Wire.beginTransmission(MPU2); //Start communication with the address found during search.
   Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register
   Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
-  Wire.endTransmission(false);
+  Wire.endTransmission(true);
+  */
 }
