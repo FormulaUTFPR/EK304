@@ -25,7 +25,6 @@ void setupWIRE();
 void taskModu1(void); //Cria task do modulo 1
 void taskModu2(void); //Cria task do modulo 2
 void taskSusp(void);  //Cria a task para leitura e calcular a pressao
-void taskCAN(void);   //Cria a task para o envio de dados
 void taskScheduler(void);
 void taskBlink(void);
 
@@ -45,12 +44,11 @@ void taskBlink(void);
 
 // TIMERS
 
-#define TMR_BASE 100000     //Clock base para os multiplicadores
-#define TMR_CANSEND 500000 //Timer para envios da can
-#define TMR_SUSP 100000    //Timer para gravar dados da suspensão
-#define TMR_ACELE1 100000  //Timer para gravar e enviar dados do acelerômetro 1
-#define TMR_ACELE2 100000  //Timer para gravar e enviar dados do acelerômetro 2
-#define TMR_BLINK 100000   //Timer para piscar o led
+#define TMR_BASE 100000   //Clock base para os multiplicadores
+#define TMR_SUSP 100000   //Timer para gravar dados da suspensão
+#define TMR_ACELE1 100000 //Timer para gravar e enviar dados do acelerômetro 1
+#define TMR_ACELE2 100000 //Timer para gravar e enviar dados do acelerômetro 2
+#define TMR_BLINK 100000  //Timer para piscar o led
 
 //Variáveis Globais
 
@@ -63,22 +61,36 @@ int fAcx1, fAcy1, fAcz1, fAcx2, fAcy2, fAcz2;
 int fGyx1, fGyy1, fGyz1, fGyx2, fGyy2, fGyz2;
 bool estadoLed = false;
 
+//Acc Variables -- VARIÁVEIS NOVAS -- ATUALIZAR
+int acc_error = 0;                          //We use this variable to only calculate once the Acc data error
+float rad_to_deg = 180 / 3.141592654;       //This value is for pasing from radians to degrees values
+float Acc_rawX, Acc_rawY, Acc_rawZ;         //Here we store the raw data read
+float Acc_angle_x, Acc_angle_y;             //Here we store the angle value obtained with Acc data
+float Acc_angle_error_x, Acc_angle_error_y; //Here we store the initial Acc data error
+
+float Total_angle_x, Total_angle_y;
+
+//Gyro Variables
+float elapsedTime, time, timePrev;        //Variables for time control
+int gyro_error = 0;                       //We use this variable to only calculate once the gyro data error
+float Gyr_rawX, Gyr_rawY, Gyr_rawZ;       //Here we store the raw data read
+float Gyro_angle_x, Gyro_angle_y;         //Here we store the angle value obtained with Gyro data
+float Gyro_raw_error_x, Gyro_raw_error_y; //Here we store the initial gyro data error
+
+// AQUI ACABAM AS VARIÁVEIS NOVAS
+
 //Variáveis para controle de Tarefas
 
-bool tmrCansendOverflow = false;
-bool tmrCansendEnable = true;
-int tmrCansendCont = 0;
-
 bool tmrBlinkOverflow = false;
-bool tmrBlinkEnable = true;
+bool tmrBlinkEnable = false;
 int tmrBlinkCount = 0;
 
 bool tmrSuspOverflow = false;
-bool tmrSuspEnable = true;
+bool tmrSuspEnable = false;
 int tmrSuspCount = 0;
 
 bool tmrAcele1Overflow = false;
-bool tmrAcele1Enable = true;
+bool tmrAcele1Enable = false;
 int tmrAcele1Count = 0;
 
 bool tmrAcele2Overflow = false;
@@ -91,50 +103,36 @@ can_frame Modulo2Acc;
 can_frame Modulo1Gyro;
 can_frame Modulo2Gyro;
 can_frame Suspensao;
-can_frame Frameack;
 
 MCP2515 mcp2515(CAN_CS); //Pino 10 é o Slave
 
 void setup()
 {
+  pinMode(LED_CPU, OUTPUT);
+
   digitalWrite(LED_CPU, HIGH);
   delay(100);
   digitalWrite(LED_CPU, LOW);
   delay(100);
+
+  pinMode(PIN_SUSP_DIREITA, INPUT);
+  pinMode(PIN_SUSP_ESQUERDA, INPUT);
 
   setupCAN();
-  
-  digitalWrite(LED_CPU, HIGH);
-  delay(100);
-  digitalWrite(LED_CPU, LOW);
-  delay(100);
 
   setupWIRE();
-  
-  digitalWrite(LED_CPU, HIGH);
-  delay(100);
-  digitalWrite(LED_CPU, LOW);
-  delay(100);
 
   SPI.begin();
-  //Serial.begin(9600);
-
-  digitalWrite(LED_CPU, HIGH);
-  delay(100);
-  digitalWrite(LED_CPU, LOW);
-  delay(100);
+  //Serial.begin(9600); //Usar somente para teste
 
   //Configura o TimerOne
   Timer1.initialize(TMR_BASE);
   Timer1.attachInterrupt(taskScheduler);
 
-  tmrCansendEnable = true;
   tmrSuspEnable = true;
-
-  digitalWrite(LED_CPU, HIGH);
-  delay(100);
-  digitalWrite(LED_CPU, LOW);
-  delay(100);
+  tmrBlinkEnable = true;
+  tmrAcele1Enable = false;
+  tmrAcele2Enable = true;
 }
 
 void loop()
@@ -142,22 +140,11 @@ void loop()
   taskModu1();
   taskModu2();
   taskSusp();
-  taskCAN();
   taskBlink();
 }
 
 void taskScheduler(void)
 {
-  if (tmrCansendEnable)
-  {
-    tmrCansendCont++;
-    if (tmrCansendCont >= TMR_CANSEND / TMR_BASE)
-    {
-      tmrCansendOverflow = true;
-      tmrCansendCont = 0;
-    }
-  }
-
   if (tmrSuspEnable)
   {
     tmrSuspCount++;
@@ -290,60 +277,45 @@ void taskModu2(void)
 {
   if (tmrAcele2Overflow)
   {
-    Wire.beginTransmission(MPU2);     //Transmissao
-    Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
-    Wire.endTransmission(false);      //Finaliza transmissao
-    Wire.requestFrom(MPU2, 14, true); //Solicita os dados do sensor
+    Wire.beginTransmission(0x68);
+    Wire.write(0x3B); //Ask for the 0x3B register- correspond to AcX
+    Wire.endTransmission(false);
+    Wire.requestFrom(0x68, 6, true);
 
-    //Armazenamento dos valores do acelerometro e giroscopio
-    Ac2X = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
-    Ac2Y = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
-    Ac2Z = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
-    //Wire.read() << 8 | Wire.read();        //0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L) <- Joga fora esses dados
-    Gy2X = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
-    Gy2Y = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
-    Gy2Z = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+    Acc_rawX = (Wire.read() << 8 | Wire.read()) / 4096.0; //each value needs two registres
+    Acc_rawY = (Wire.read() << 8 | Wire.read()) / 4096.0;
+    Acc_rawZ = (Wire.read() << 8 | Wire.read()) / 4096.0;
 
-    Acx2 = (Ac2X / 16384) * 100; //  Dividido por 16384 para converter os valores para 1G,
-    Acy2 = (Ac2Y / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
-    Acz2 = (Ac2Z / 16384) * 100; //  casas decimais,
-    Gyx2 = Gy2X / 131;           //  Dividido por 131 para converter os valores para graus/s.
-    Gyy2 = Gy2Y / 131;
-    Gyz2 = Gy2Z / 131;
+    Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
+    Wire.write(0x43);             //First adress of the Gyro data
+    Wire.endTransmission(false);
+    Wire.requestFrom(0x68, 6, true); //We ask for just 4 registers
 
-    int iAcx2 = int(Acx2);    // Nova escala de 0 a 200
-    int iAcy2 = int(Acy2);    // Essa escala se refere a -1 a 1 G
-    int iAcz2 = int(Acz2);    // Aproximadamente 0 se refere a -1 G.
-    int iiAcx2 = iAcx2 + 120; // Aproximadamente 100 se refere a 0 G.
-    int iiAcy2 = iAcy2 + 120; // Aproximadamente 200 se refere a 1 G.
-    int iiAcz2 = iAcz2 + 120;
-    unsigned int fAcx2 = map(iiAcx2, 0, 215, 0, 200);
-    unsigned int fAcy2 = map(iiAcy2, 0, 215, 0, 200);
-    unsigned int fAcz2 = map(iiAcz2, 0, 205, 0, 200);
+    Gyr_rawX = Wire.read() << 8 | Wire.read(); //Once again we shif and sum
+    Gyr_rawY = Wire.read() << 8 | Wire.read();
+    Gyr_rawZ = Wire.read() << 8 | Wire.read();
 
-    int iGyx2 = int(Gyx2);    // Nova escala de 0 a 250.
-    int iGyy2 = int(Gyy2);    // Essa escala se refere a -250 a 250 graus/s.
-    int iGyz2 = int(Gyz2);    // Aproximadamente 0 se refere a -250 graus/s.
-    int iiGyx2 = iGyx2 + 250; // Aproximadamente 125 se refere a 0 graus/s.
-    int iiGyy2 = iGyy2 + 250; // Aproximadamente 250 se refere a 250 graus/s.
-    int iiGyz2 = iGyz2 + 250;
-    unsigned int fGyx2 = map(iiGyx2, 0, 500, 0, 250);
-    unsigned int fGyy2 = map(iiGyy2, 0, 500, 0, 250);
-    unsigned int fGyz2 = map(iiGyz2, 0, 500, 0, 250);
+    int iAcx2 = int(Acc_rawX); // Nova escala de 0 a 200
+    int iAcy2 = int(Acc_rawY); // Essa escala se refere a -1 a 1 G
+    int iAcz2 = int(Acc_rawZ); // Aproximadamente 0 se refere a -1 G.
 
-    Modulo2Acc.data[0] = (fAcx1 >> 8) & 0xFF;
-    Modulo2Acc.data[1] = fAcx1 & 0x0F;
-    Modulo2Acc.data[2] = (fAcy1 >> 8) & 0xFF;
-    Modulo2Acc.data[3] = fAcy1 & 0x0F;
-    Modulo2Acc.data[4] = (fAcz1 >> 8) & 0xFF;
-    Modulo2Acc.data[5] = fAcz1 & 0x0F;
+    int iGyx2 = int(Gyr_rawX); // Nova escala de 0 a 250.
+    int iGyy2 = int(Gyr_rawY); // Essa escala se refere a -250 a 250 graus/s.
+    int iGyz2 = int(Gyr_rawZ); // Aproximadamente 0 se refere a -250 graus/s.
 
-    Modulo2Gyro.data[0] = (fGyx1 >> 8) & 0xFF;
-    Modulo2Gyro.data[1] = fGyx1 & 0x0F;
-    Modulo2Gyro.data[2] = (fGyy1 >> 8) & 0xFF;
-    Modulo2Gyro.data[3] = fGyy1 & 0x0F;
-    Modulo2Gyro.data[4] = (fGyz1 >> 8) & 0xFF;
-    Modulo2Gyro.data[5] = fGyz1 & 0x0F;
+    Modulo2Acc.data[0] = (iAcx2 >> 8) & 0xFF;
+    Modulo2Acc.data[1] = iAcx2 & 0x0F;
+    Modulo2Acc.data[2] = (iAcy2 >> 8) & 0xFF;
+    Modulo2Acc.data[3] = iAcy2 & 0x0F;
+    Modulo2Acc.data[4] = (iAcz2 >> 8) & 0xFF;
+    Modulo2Acc.data[5] = iAcz2 & 0x0F;
+
+    Modulo2Gyro.data[0] = (iGyx2 >> 8) & 0xFF;
+    Modulo2Gyro.data[1] = iGyx2 & 0x0F;
+    Modulo2Gyro.data[2] = (iGyy2 >> 8) & 0xFF;
+    Modulo2Gyro.data[3] = iGyy2 & 0x0F;
+    Modulo2Gyro.data[4] = (iGyz2 >> 8) & 0xFF;
+    Modulo2Gyro.data[5] = iGyz2 & 0x0F;
 
     tmrAcele2Overflow = false;
 
@@ -357,6 +329,7 @@ void taskSusp(void)
 {
   if (tmrSuspOverflow)
   {
+    /*
     //Suspensao
 
     posicaoSuspDireita = (unsigned int)map(analogRead(PIN_SUSP_DIREITA), VALOR_MIN_LEITURA_SUSP, VALOR_MAX_LEITURA_SUSP, 0, 255);
@@ -364,19 +337,31 @@ void taskSusp(void)
 
     Suspensao.data[0] = (unsigned int)posicaoSuspDireita & 0xFF;  //Armazena o valor da leitura no primeiro byte do frame da suspensao
     Suspensao.data[1] = (unsigned int)posicaoSuspEsquerda & 0xFF; //Armazena o valor da leitura no segundo byte do frame da suspensao
-                                                                                                                                                                    
+
     tmrSuspOverflow = false;
+
+    mcp2515.sendMessage(&Suspensao);
+    */
+
+    //Suspensao
+
+    unsigned int sender1 = analogRead(PIN_SUSP_DIREITA);
+
+    unsigned int sender2 = analogRead(PIN_SUSP_ESQUERDA);
+
+    Suspensao.data[0] = (sender1 >> 8) & 0xFF;
+    Suspensao.data[1] = sender1 & 0x03;
+
+    Suspensao.data[2] = (sender2 >> 8) & 0xFF;
+    Suspensao.data[3] = sender2 & 0x03;
 
     if (mcp2515.sendMessage(&Suspensao) != MCP2515::ERROR::ERROR_OK)
     { // envia os dados de um CAN_Frame na CAN
       tmrBlinkEnable = false;
     }
-  }
-}
 
-//ENVIO CAN
-void taskCAN(void)
-{
+    tmrSuspOverflow = false;
+  }
 }
 
 //Funções
@@ -396,10 +381,10 @@ void setupCAN()
   Modulo1Gyro.can_dlc = 6;
 
   //MODULO 2
-  Modulo2Acc.can_id = EK304CAN_ID_ACC_02;
+  Modulo2Acc.can_id = EK304CAN_ID_ACC_01;
   Modulo2Acc.can_dlc = 6;
 
-  Modulo2Gyro.can_id = EK304CAN_ID_GYRO_02;
+  Modulo2Gyro.can_id = EK304CAN_ID_GYRO_01;
   Modulo2Gyro.can_dlc = 6;
 
   //SUSPENSAO
@@ -409,7 +394,7 @@ void setupCAN()
 
 void setupWIRE()
 {
-
+  /*    USAR SOMENTE PARA VALIDAÇÃO EM PROTOBOARD -- TESTAR ANTES
   Wire.begin(); //Inicia I2C
 
   //------MPU1
@@ -429,7 +414,6 @@ void setupWIRE()
   Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
   Wire.endTransmission(false);
 
-/*
   //------MPU2
   Wire.beginTransmission(MPU2); //begin, Send the slave adress (in this case 68)
   Wire.write(0x6B);             //make the reset (place a 0 into the 6B register)
@@ -446,4 +430,20 @@ void setupWIRE()
   Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
   Wire.endTransmission(false);
   */
+
+  Wire.begin();                 //begin the wire comunication
+  Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
+  Wire.write(0x6B);             //make the reset (place a 0 into the 6B register)
+  Wire.write(0x00);
+  Wire.endTransmission(true); //end the transmission
+  //Gyro config
+  Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
+  Wire.write(0x1B);             //We want to write to the GYRO_CONFIG register (1B hex)
+  Wire.write(0x10);             //Set the register bits as 00010000 (1000dps full scale)
+  Wire.endTransmission(true);   //End the transmission with the gyro
+  //Acc config
+  Wire.beginTransmission(0x68); //Start communication with the address found during search.
+  Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register
+  Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
+  Wire.endTransmission(true);
 }

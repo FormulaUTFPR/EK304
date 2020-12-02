@@ -23,7 +23,7 @@ void pulseHappened(void);
 void setupInit();              //PinModes, inicializar outras coisas, entre outros
 void taskVehicleStopped(void); //Cria task do sensor de velocidade
 void setupCAN();               //Setup da CAN, pacotes e parâmetros
-void setupACC();               //Setup dos acelerômetros
+void setupWire();              //Setup dos acelerômetros
 
 //Protótipos de funções de tratamento
 
@@ -36,10 +36,10 @@ void ISR_SPEED(); //Tratamento da interrupção do pino do leitor de velocidade
 
 //Portas analogicas
 
-#define PIN_OIL_TEMP A1   //Porta para o sensor de temperatura do oleo
 #define PIN_PRESSURE A0   //Porta para o sensor de pressão
-#define PIN_RIGHT_SUSP A2 //Porta para o sensor da suspensao direita
-#define PIN_LEFT_SUSP A3  //Porta para o sensor da suspensao esquerda
+#define PIN_OIL_TEMP A1   //Porta para o sensor de temperatura do oleo
+#define PIN_RIGHT_SUSP A1 //Porta para o sensor da suspensao direita
+#define PIN_LEFT_SUSP A0  //Porta para o sensor da suspensao esquerda //A4 e A5 pro acelerômetro
 
 //Endereço do acelerometro
 const int MPU1 = 0x68; //Endereço é importante para pinagem
@@ -77,9 +77,31 @@ int tmrBlinkCount = 0;
 bool flagSpeed = false; //Cria uma flag para dizer que o evento pulso do sensor de velocidade ocorreu
 int numPulses = 0;      //Cria uma variável para armazenar a quantidade de pulsos que ocorreram antes da função ser tratada
 
-float Ac1X, Ac1Y, Ac1Z, Gy1X, Gy1Y, Gy1Z;
-float Acx1, Acy1, Acz1, Gyx1, Gyy1, Gyz1;
-unsigned int fAcx1, fAcy1, fAcz1;
+//  VARIÁVEIS ANTIGAS ACELERÔMETRO
+
+/*
+  float Ac1X, Ac1Y, Ac1Z, Gy1X, Gy1Y, Gy1Z;
+  float Acx1, Acy1, Acz1, Gyx1, Gyy1, Gyz1;
+  unsigned int fAcx1, fAcy1, fAcz1;
+*/
+
+//  VARIÁVEIS ATUALIZADAS DO ACELERÔMETRO
+
+//Gyro Variables
+float elapsedTime, time, timePrev;        //Variables for time control
+int gyro_error = 0;                       //We use this variable to only calculate once the gyro data error
+float Gyr_rawX, Gyr_rawY, Gyr_rawZ;       //Here we store the raw data read
+float Gyro_angle_x, Gyro_angle_y;         //Here we store the angle value obtained with Gyro data
+float Gyro_raw_error_x, Gyro_raw_error_y; //Here we store the initial gyro data error
+
+//Acc Variables
+int acc_error = 0;                          //We use this variable to only calculate once the Acc data error
+float rad_to_deg = 180 / 3.141592654;       //This value is for pasing from radians to degrees values
+float Acc_rawX, Acc_rawY, Acc_rawZ;         //Here we store the raw data read
+float Acc_angle_x, Acc_angle_y;             //Here we store the angle value obtained with Acc data
+float Acc_angle_error_x, Acc_angle_error_y; //Here we store the initial Acc data error
+
+float Total_angle_x, Total_angle_y;
 
 //Pinos da CAN - pinagem do modulo mcp2515
 
@@ -90,8 +112,8 @@ unsigned int fAcx1, fAcy1, fAcz1;
 
 //Criar pacotes da CAN
 
-can_frame canACEL; //Frame pro acelerometro
-can_frame canGYRO; //Frame pro giroscopio
+can_frame Modulo2Acc;  //Frame pro acelerometro
+can_frame Modulo2Gyro; //Frame pro giroscopio
 can_frame canOilPressure;
 can_frame canOilTemp;
 can_frame canSpeed;
@@ -100,7 +122,7 @@ can_frame canSuspRear;
 //Variaveis globais
 
 #define SAMPLE_QTTY 5     //Numero de amostragens pra media do calculo da velocidade
-#define MAGNET_QTTY 9     //Numero de imãs na roda fônica
+#define MAGNET_QTTY 1     //Numero de imãs na roda fônica
 #define MAX_SPEED 10000   //Numero max de velocidade
 #define MIN_READ_SUSP 117 //Minimo valor de leitura na porta analogica
 #define MAX_READ_SUSP 914 //Maximo valor de leitura na porta analogica
@@ -118,28 +140,30 @@ bool estadoLed = false;   //variavel que define o estado do led
 #define TMR_TEMP 1000000    //Leitura da temperatura a cada 0,1 segundo
 #define TMR_PRESSURE 100000 //Leitura da pressão a cada 0,1 segundo
 #define TMR_SUSP 100000     //Leitura dos dados da suspensão 0,1 segundo
-#define TMR_ACC 1000000     //Leitura dos dados do acelerômetro a cada 0,1 segundo
+#define TMR_ACC 100000      //Leitura dos dados do acelerômetro a cada 0,1 segundo
 #define TMR_BLINK 100000    //Timer para piscar o led
 
 //Declaração de variaveis globais
 unsigned long InitialTime; //Tempo em Microsegundos em que ocorreu o pulso
 unsigned long TimeDif;     //Valor da diferenca de tempo entre dois pulsos
 
+unsigned long TimeDif; //Valor da diferenca de tempo entre dois pulsos
+unsigned int average;  //Media entre alguns RPMs para ter um valor com menos interferencias
+unsigned long RPM;     //RPM nao suavizado - o suavizado é a media
+unsigned int counter;  //Contador para fazer a media
+
 MCP2515 mcp2515(CAN_CS);
 
 void setup()
 {
-  digitalWrite(LED_CPU, HIGH);
-  delay(100);
-  digitalWrite(LED_CPU, LOW);
-  delay(100);
-
   //Serial.begin(9600);
   //Serial.println("setup");
 
   setupInit(); //PinModes, inicializar outras coisas, entre outros
   setupCAN();  //Setup da CAN, pacotes e parâmetros
-  //setupACC();  //Setup dos acelerômetros
+  setupWire(); //Setup dos acelerômetros
+
+  SPI.begin();
 
   Timer1.initialize(TMR_BASE);           //Inicializar a biblioteca Timer1 com o tempo de TMR_BASE
   Timer1.attachInterrupt(taskScheduler); //Define o escalonador
@@ -172,11 +196,6 @@ void loop()
 
 unsigned int taskSpeed()
 {
-  unsigned long TimeDif; //Valor da diferenca de tempo entre dois pulsos
-  unsigned int average;  //Media entre alguns RPMs para ter um valor com menos interferencias
-  unsigned long RPM;     //RPM nao suavizado - o suavizado é a media
-  unsigned int counter;  //Contador para fazer a media
-
   if (flagSpeed)
   {
     flagSpeed = false;   //Desativa a flag que chama a função
@@ -296,75 +315,101 @@ void taskCAN(void)
 void taskAcc(void) //Tarefa do acelerometro
 {
   if (tmrAccOverflow)
-  {
-    Wire.beginTransmission(MPU1); //Transmissao
-    Wire.write(0x3B);             //Endereco 0x3B (ACCEL_XOUT_H)
-    if (Wire.endTransmission(false) != 0)
-    { //Finaliza transmissao
-      tmrBlinkEnable = false;
-    }
-    Wire.requestFrom(MPU1, 14, true); //Solicita os dados do sensor
+  { /*
+    Wire.beginTransmission(MPU2);     //Transmissao
+    Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
+    Wire.endTransmission(false);      //Finaliza transmissao
+    Wire.requestFrom(MPU2, 14, true); //Solicita os dados do sensor
 
-    //Armazenamento dos valores do acelerometro e giroscopio
-    Ac1X = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
-    Ac1Y = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
-    Ac1Z = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
-    //Wire.read() << 8 | Wire.read();        //0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L) <- Joga fora esses dados
-    Gy1X = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
-    Gy1Y = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
-    Gy1Z = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+   //Wire.beginTransmission(MPU2);
+   //Wire.write(0x3B); //Ask for the 0x3B register- correspond to AcX
+   //Wire.endTransmission(false);
+   //Wire.requestFrom(0x68, 14, true);
 
-    Acx1 = (Ac1X / 16384) * 100; //  Dividido por 16384 para converter os valores para G,
-    Acy1 = (Ac1Y / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
-    Acz1 = (Ac1Z / 16384) * 100; //  casas decimais.
-    Gyx1 = Gy1X / 131;           //  Dividido por 131 para converter os valores para graus/s
-    Gyy1 = Gy1Y / 131;
-    Gyz1 = Gy1Z / 131;
+   //Armazenamento dos valores do acelerometro e giroscopio
+   Ac2X = Wire.read() << 8 | Wire.read(); //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
+   Ac2Y = Wire.read() << 8 | Wire.read(); //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+   Ac2Z = Wire.read() << 8 | Wire.read(); //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+   //Wire.read() << 8 | Wire.read();        //0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L) <- Joga fora esses dados
+   Gy2X = Wire.read() << 8 | Wire.read(); //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+   Gy2Y = Wire.read() << 8 | Wire.read(); //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+   Gy2Z = Wire.read() << 8 | Wire.read(); //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 
-    int iAcx1 = int(Acx1);    // Nova escala de 0 a 200.
-    int iAcy1 = int(Acy1);    // Essa escala se refere a -1 a 1 G.
-    int iAcz1 = int(Acz1);    // Aproximadamente 0 se refere a -1 G.
-    int iiAcx1 = iAcx1 + 105; // Aproximadamente 100 se refere a 0 G.
-    int iiAcy1 = iAcy1 + 105; // Aproximadamente 200 se refere a 1 G.
-    int iiAcz1 = iAcz1 + 105;
-    unsigned int fAcx1 = map(iiAcx1, 0, 220, 0, 200);
-    unsigned int fAcy1 = map(iiAcy1, 0, 220, 0, 200);
-    unsigned int fAcz1 = map(iiAcz1, 0, 220, 0, 200);
+   Acx2 = (Ac2X / 16384) * 100; //  Dividido por 16384 para converter os valores para 1G,
+   Acy2 = (Ac2Y / 16384) * 100; //  multiplicado por 100 para obter com precisao de duas
+   Acz2 = (Ac2Z / 16384) * 100; //  casas decimais,
+   Gyx2 = Gy2X / 131;           //  Dividido por 131 para converter os valores para graus/s.
+   Gyy2 = Gy2Y / 131;
+   Gyz2 = Gy2Z / 131;
 
-    int iGyx1 = int(Gyx1);    // Nova escala de 0 a 250.
-    int iGyy1 = int(Gyy1);    // Essa escala se refere a -250 a 250 graus/s.
-    int iGyz1 = int(Gyz1);    // Aproximadamente 0 se refere a -250 graus/s.
-    int iiGyx1 = iGyx1 + 250; // Aproximadamente 125 se refere a 0 graus/s.
-    int iiGyy1 = iGyy1 + 250; // Aproximadamente 250 se refere a 250 graus/s.
-    int iiGyz1 = iGyz1 + 250;
-    unsigned int fGyx1 = map(iiGyx1, 0, 500, 0, 250);
-    unsigned int fGyy1 = map(iiGyy1, 0, 500, 0, 250);
-    unsigned int fGyz1 = map(iiGyz1, 0, 500, 0, 250);
+   int iAcx2 = int(Acx2);    // Nova escala de 0 a 200
+   int iAcy2 = int(Acy2);    // Essa escala se refere a -1 a 1 G
+   int iAcz2 = int(Acz2);    // Aproximadamente 0 se refere a -1 G.
+   int iiAcx2 = iAcx2 + 120; // Aproximadamente 100 se refere a 0 G.
+   int iiAcy2 = iAcy2 + 120; // Aproximadamente 200 se refere a 1 G.
+   int iiAcz2 = iAcz2 + 120;
+   unsigned int fAcx2 = map(iiAcx2, 0, 215, 0, 200);
+   unsigned int fAcy2 = map(iiAcy2, 0, 215, 0, 200);
+   unsigned int fAcz2 = map(iiAcz2, 0, 205, 0, 200);
 
-    canACEL.data[0] = (fAcx1 >> 8) & 0xFF;
-    canACEL.data[1] = fAcx1 & 0x0F;
-    canACEL.data[2] = (fAcy1 >> 8) & 0xFF;
-    canACEL.data[3] = fAcy1 & 0x0F;
-    canACEL.data[4] = (fAcz1 >> 8) & 0xFF;
-    canACEL.data[5] = fAcz1 & 0x0F;
+   int iGyx2 = int(Gyx2);    // Nova escala de 0 a 250.
+   int iGyy2 = int(Gyy2);    // Essa escala se refere a -250 a 250 graus/s.
+   int iGyz2 = int(Gyz2);    // Aproximadamente 0 se refere a -250 graus/s.
+   int iiGyx2 = iGyx2 + 250; // Aproximadamente 125 se refere a 0 graus/s.
+   int iiGyy2 = iGyy2 + 250; // Aproximadamente 250 se refere a 250 graus/s.
+   int iiGyz2 = iGyz2 + 250;
+   unsigned int fGyx2 = map(iiGyx2, 0, 500, 0, 250);
+   unsigned int fGyy2 = map(iiGyy2, 0, 500, 0, 250);
+   unsigned int fGyz2 = map(iiGyz2, 0, 500, 0, 250);
 
-    canGYRO.data[0] = (fGyx1 >> 8) & 0xFF;
-    canGYRO.data[1] = fGyx1 & 0x0F;
-    canGYRO.data[2] = (fGyy1 >> 8) & 0xFF;
-    canGYRO.data[3] = fGyy1 & 0x0F;
-    canGYRO.data[4] = (fGyz1 >> 8) & 0xFF;
-    canGYRO.data[5] = fGyz1 & 0x0F;
+   Serial.println(Gyx2);
+   Serial.println(Gyy2);
+   Serial.println(Gyz2);
+*/
+    Wire.beginTransmission(0x68);
+    Wire.write(0x3B); //Ask for the 0x3B register- correspond to AcX
+    Wire.endTransmission(false);
+    Wire.requestFrom(0x68, 6, true);
 
-    if (mcp2515.sendMessage(&canACEL) != MCP2515::ERROR::ERROR_OK)
-    { // envia os dados de um CAN_Frame na CAN
-      tmrBlinkEnable = false;
-    }
+    Acc_rawX = (Wire.read() << 8 | Wire.read()) / 4096.0; //each value needs two registres
+    Acc_rawY = (Wire.read() << 8 | Wire.read()) / 4096.0;
+    Acc_rawZ = (Wire.read() << 8 | Wire.read()) / 4096.0;
 
-    mcp2515.sendMessage(&canGYRO);
+    Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
+    Wire.write(0x43);             //First adress of the Gyro data
+    Wire.endTransmission(false);
+    Wire.requestFrom(0x68, 6, true); //We ask for just 4 registers
+
+    Gyr_rawX = Wire.read() << 8 | Wire.read(); //Once again we shif and sum
+    Gyr_rawY = Wire.read() << 8 | Wire.read();
+    Gyr_rawZ = Wire.read() << 8 | Wire.read();
+
+    int iAcx2 = int(Acc_rawX); // Nova escala de 0 a 200
+    int iAcy2 = int(Acc_rawY); // Essa escala se refere a -1 a 1 G
+    int iAcz2 = int(Acc_rawZ); // Aproximadamente 0 se refere a -1 G.
+
+    int iGyx2 = int(Gyr_rawX); // Nova escala de 0 a 250.
+    int iGyy2 = int(Gyr_rawY); // Essa escala se refere a -250 a 250 graus/s.
+    int iGyz2 = int(Gyr_rawZ); // Aproximadamente 0 se refere a -250 graus/s.
+
+    Modulo2Acc.data[0] = (iAcx2 >> 8) & 0xFF;
+    Modulo2Acc.data[1] = iAcx2 & 0x0F;
+    Modulo2Acc.data[2] = (iAcy2 >> 8) & 0xFF;
+    Modulo2Acc.data[3] = iAcy2 & 0x0F;
+    Modulo2Acc.data[4] = (iAcz2 >> 8) & 0xFF;
+    Modulo2Acc.data[5] = iAcz2 & 0x0F;
+
+    Modulo2Gyro.data[0] = (iGyx2 >> 8) & 0xFF;
+    Modulo2Gyro.data[1] = iGyx2 & 0x0F;
+    Modulo2Gyro.data[2] = (iGyy2 >> 8) & 0xFF;
+    Modulo2Gyro.data[3] = iGyy2 & 0x0F;
+    Modulo2Gyro.data[4] = (iGyz2 >> 8) & 0xFF;
+    Modulo2Gyro.data[5] = iGyz2 & 0x0F;
 
     tmrAccOverflow = false;
 
-    tmrBlinkEnable = true;
+    mcp2515.sendMessage(&Modulo2Acc);  // envia os dados de um CAN_Frame na CAN
+    mcp2515.sendMessage(&Modulo2Gyro); // envia os dados de um CAN_Frame na CAN
   }
 }
 
@@ -372,11 +417,12 @@ void taskAcc(void) //Tarefa do acelerometro
 
 void setupInit()
 {
-  SPI.begin();
-  Wire.begin(); //Inicia I2C
-  //Serial.begin(9600);
+  pinMode(LED_CPU, OUTPUT);
 
-  //Serial.println("Setup");
+  digitalWrite(LED_CPU, HIGH);
+  delay(100);
+  digitalWrite(LED_CPU, LOW);
+  delay(100);
 
   //Modos das entradas
 
@@ -384,8 +430,7 @@ void setupInit()
   pinMode(PIN_PRESSURE, INPUT);
   pinMode(PIN_OIL_TEMP, INPUT);
   pinMode(PIN_RIGHT_SUSP, INPUT);
-  pinMode(PIN_LEFT_SUSP, INPUT);
-  pinMode(LED_CPU, OUTPUT);                                              //LED do módulo
+  pinMode(PIN_LEFT_SUSP, INPUT);                                         //LED do módulo
   attachInterrupt(digitalPinToInterrupt(PIN_SPEED), ISR_SPEED, FALLING); //Quando o sensor passa de HIGH pra LOW, chama a funcao taskPulso
 }
 
@@ -396,11 +441,12 @@ void setupCAN()
   CAN_Init(&mcp2515, CAN_500KBPS);
   digitalWrite(LED_CPU, LOW); //Desliga o LED
 
-  canACEL.can_id = EK304CAN_ID_ACC_03; //Define o id como o do acelerômetro 3 da CAN
-  canACEL.can_dlc = 6;                 //Tamanho do pacote
+  //MODULO 3
+  Modulo2Acc.can_id = EK304CAN_ID_ACC_03;
+  Modulo2Acc.can_dlc = 6;
 
-  canGYRO.can_id = EK304CAN_ID_GYRO_03;
-  canGYRO.can_dlc = 6;
+  Modulo2Gyro.can_id = EK304CAN_ID_GYRO_03;
+  Modulo2Gyro.can_dlc = 6;
 
   canOilPressure.can_id = EK304CAN_ID_OIL_PRESSURE;
   canOilPressure.can_dlc = 1;
@@ -415,19 +461,23 @@ void setupCAN()
   canSuspRear.can_dlc = 4;
 }
 
-void setupACC()
+void setupWire()
 {
-  //Programação dos acelerômetros
-
-  Wire.beginTransmission(MPU1);
-  Wire.write(0x6B);
-
-  //Inicializa o MPU-6050
-  Wire.write(0);
-  if (Wire.endTransmission(true) != 0)
-  { //Finaliza transmissao
-    tmrBlinkEnable = false;
-  }
+  Wire.begin();                 //begin the wire comunication
+  Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
+  Wire.write(0x6B);             //make the reset (place a 0 into the 6B register)
+  Wire.write(0x00);
+  Wire.endTransmission(true); //end the transmission
+  //Gyro config
+  Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
+  Wire.write(0x1B);             //We want to write to the GYRO_CONFIG register (1B hex)
+  Wire.write(0x10);             //Set the register bits as 00010000 (1000dps full scale)
+  Wire.endTransmission(true);   //End the transmission with the gyro
+  //Acc config
+  Wire.beginTransmission(0x68); //Start communication with the address found during search.
+  Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register
+  Wire.write(0x10);             //Set the register bits as 00010000 (+/- 8g full scale range)
+  Wire.endTransmission(true);
 }
 
 //Scheduler
