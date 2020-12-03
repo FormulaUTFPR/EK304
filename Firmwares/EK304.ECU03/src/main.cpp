@@ -342,7 +342,7 @@ void taskModu2(void)
     if (mcp2515.sendMessage(&Modulo2Gyro) != MCP2515::ERROR::ERROR_OK)
     { // envia os dados de um CAN_Frame na CAN
       tmrBlinkEnable = false;
-    }
+    }                                 
   }
 }
 
