@@ -74,7 +74,7 @@ BO_ 515 OilTemp: 1 RearData_Module04
  SG_ OilTemp : 0|8@1+ (1,0) [0|255] "degC"  Gateway
 
 BO_ 1 OilPressure: 1 RearData_Module04
- SG_ OilPressure : 0|8@1+ (0.1,0) [0|25.5] "Bar"  Gateway
+ SG_ OilPressure : 0|8@1+ (0.0392,0) [0|9.996] "Bar"  Gateway
 
 BO_ 1029 SuspRear: 4 RearData_Module04
  SG_ SuspRearRight : 16|10@1+ (1,0) [0|0] ""  Gateway
