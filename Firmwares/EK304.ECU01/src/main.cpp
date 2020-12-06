@@ -110,10 +110,6 @@ void setup()
 {
   pinMode(LED_CPU, OUTPUT);
 
-  digitalWrite(LED_CPU, HIGH);
-  delay(100);
-  digitalWrite(LED_CPU, LOW);
-  delay(100);
 
   pinMode(PIN_SUSP_DIREITA, INPUT);
   pinMode(PIN_SUSP_ESQUERDA, INPUT);
@@ -129,10 +125,16 @@ void setup()
   Timer1.initialize(TMR_BASE);
   Timer1.attachInterrupt(taskScheduler);
 
-  tmrSuspEnable = true;
-  tmrBlinkEnable = true;
+  tmrSuspEnable = false;
+  tmrBlinkEnable = false;
   tmrAcele1Enable = false;
   tmrAcele2Enable = true;
+
+  digitalWrite(LED_CPU, HIGH);
+  delay(100);
+  digitalWrite(LED_CPU, LOW);
+  delay(1000);
+
 }
 
 void loop()
@@ -209,7 +211,7 @@ void taskBlink(void)
 void taskModu1(void)
 {
   if (tmrAcele1Overflow)
-  {
+  {/*
     Wire.beginTransmission(MPU1); //Transmissao
     Wire.write(0x3B);             //Endereco 0x3B (ACCEL_XOUT_H)
     Wire.endTransmission(false);
@@ -267,9 +269,68 @@ void taskModu1(void)
 
     tmrAcele1Overflow = false;
 
-    mcp2515.sendMessage(&Modulo1Acc);  // envia os dados de um CAN_Frame na CAN
-    mcp2515.sendMessage(&Modulo1Gyro); // envia os dados de um CAN_Frame na CAN
+    if (mcp2515.sendMessage(&Modulo1Acc) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    } 
+    if (mcp2515.sendMessage(&Modulo1Gyro) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    
+    
+    Wire.beginTransmission(0x68);
+    Wire.write(0x3B); //Ask for the 0x3B register- correspond to AcX
+    Wire.endTransmission(false);
+    Wire.requestFrom(0x68, 14, true);
+
+    Ac1X = (Wire.read() << 8 | Wire.read()) / 4096.0; //each value needs two registres
+    Ac1Y = (Wire.read() << 8 | Wire.read()) / 4096.0;
+    Ac1Z = (Wire.read() << 8 | Wire.read()) / 4096.0;
+
+    Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
+    Wire.write(0x43);             //First adress of the Gyro data
+    Wire.endTransmission(false);
+    Wire.requestFrom(0x68, 14, true); //We ask for just 4 registers
+
+    Gy1X = Wire.read() << 8 | Wire.read(); //Once again we shif and sum
+    Gy1Y = Wire.read() << 8 | Wire.read();
+    Gy1Z = Wire.read() << 8 | Wire.read();
+
+    int iAcx1 = int(Ac1X); // Nova escala de 0 a 200
+    int iAcy1 = int(Ac1Y); // Essa escala se refere a -1 a 1 G
+    int iAcz1 = int(Ac1Z); // Aproximadamente 0 se refere a -1 G.
+
+    int iGyx1 = int(Gy1X); // Nova escala de 0 a 250.
+    int iGyy1 = int(Gy1Y); // Essa escala se refere a -250 a 250 graus/s.
+    int iGyz1 = int(Gy1Z); // Aproximadamente 0 se refere a -250 graus/s.
+
+    Modulo2Acc.data[0] = (iAcx1 >> 8) & 0xFF;
+    Modulo2Acc.data[1] = iAcx1 & 0x0F;
+    Modulo2Acc.data[2] = (iAcy1 >> 8) & 0xFF;
+    Modulo2Acc.data[3] = iAcy1 & 0x0F;
+    Modulo2Acc.data[4] = (iAcz1 >> 8) & 0xFF;
+    Modulo2Acc.data[5] = iAcz1 & 0x0F;
+
+    Modulo2Gyro.data[0] = (iGyx1 >> 8) & 0xFF;
+    Modulo2Gyro.data[1] = iGyx1 & 0x0F;
+    Modulo2Gyro.data[2] = (iGyy1 >> 8) & 0xFF;
+    Modulo2Gyro.data[3] = iGyy1 & 0x0F;
+    Modulo2Gyro.data[4] = (iGyz1 >> 8) & 0xFF;
+    Modulo2Gyro.data[5] = iGyz1 & 0x0F;
+  
+    
+
+    if (mcp2515.sendMessage(&Modulo2Acc) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    } 
+    if (mcp2515.sendMessage(&Modulo2Gyro) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    }*/
+    tmrAcele2Overflow = false;
   }
+
 }
 
 //SEGUNDO MODULO GY-521
@@ -319,8 +380,14 @@ void taskModu2(void)
 
     tmrAcele2Overflow = false;
 
-    mcp2515.sendMessage(&Modulo2Acc);  // envia os dados de um CAN_Frame na CAN
-    mcp2515.sendMessage(&Modulo2Gyro); // envia os dados de um CAN_Frame na CAN
+    if (mcp2515.sendMessage(&Modulo2Acc) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    } 
+    if (mcp2515.sendMessage(&Modulo2Gyro) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    }
   }
 }
 

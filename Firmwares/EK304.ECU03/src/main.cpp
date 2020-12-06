@@ -38,8 +38,8 @@
 #define TMR_BLINK 100000
 #define TMR_PRESSAO_AR 1000000
 #define TMR_TEMP_AR 1000000
-#define TMR_INDICADOR_MARCHA 100000
-#define TMR_ACELE2 100000
+#define TMR_INDICADOR_MARCHA 200000
+#define TMR_ACELE2 500000
 
 /**************************************************************************************************************************************/
 /* IMPORTAÇÃO DAS BIBLIOTECAS                                                                                                         */
@@ -61,6 +61,7 @@ void taskPressaoDoAr(void);
 void taskIndicadorDaMarcha(void);
 void taskScheduler(void);
 void taskBlink(void);
+void taskModu2(void);
 
 /**************************************************************************************************************************************/
 /* PROTÓTIPO DAS FUNÇÕES                                                                                                              */
@@ -125,11 +126,11 @@ bool estadoLed = false;
 MCP2515 mcp2515(CAN_CS); //Pino 10 é o Slave
 
 //endereços dos módulos
-const int MPU2 = 0x69; // Se o pino ADO for conectado em 5V ou 3,3V o modulo assume esse endereço
+const int MPU2 = 0x68; // Se o pino ADO for conectado em 5V ou 3,3V o modulo assume esse endereço
 
 //Declaração de variáveis do acelerômetro
 
-float Ac2X, Ac2Y, Ac2Z, Gy2X, Gy2Y, Gy2Z;
+float Ac2X, Ac2Y, Ac2Z, Tmp, Gy2X, Gy2Y, Gy2Z;
 float Acx2, Acy2, Acz2, Gyx2, Gyy2, Gyz2;
 int fAcx2, fAcy2, fAcz2;
 int fGyx2, fGyy2, fGyz2;
@@ -169,6 +170,7 @@ void setup()
   tmrPressaoDoArEnable = false;     //NÃO ATIVAR -- SENSORES DESCONECTADOS
   tmrTemperaturaDoArEnable = false; //NÃO ATIVAR -- SENSORES DESCONECTADOS
   tmrAcele2Enable = true;
+  tmrBlinkEnable = true;
 
   Timer1.initialize(TMR_BASE);
   Timer1.attachInterrupt(taskScheduler);
@@ -244,6 +246,7 @@ void taskModu2(void)
     Wire.write(0x3B);                 //Endereco 0x3B (ACCEL_XOUT_H)
     Wire.endTransmission(false);      //Finaliza transmissao
     Wire.requestFrom(MPU2, 14, true); //Solicita os dados do sensor
+    //Serial.println("Acele5");
 
    //Wire.beginTransmission(MPU2);
    //Wire.write(0x3B); //Ask for the 0x3B register- correspond to AcX
@@ -332,8 +335,14 @@ void taskModu2(void)
 
     tmrAcele2Overflow = false;
 
-    mcp2515.sendMessage(&Modulo2Acc);  // envia os dados de um CAN_Frame na CAN
-    mcp2515.sendMessage(&Modulo2Gyro); // envia os dados de um CAN_Frame na CAN
+    if (mcp2515.sendMessage(&Modulo2Acc) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    } 
+    if (mcp2515.sendMessage(&Modulo2Gyro) != MCP2515::ERROR::ERROR_OK)
+    { // envia os dados de um CAN_Frame na CAN
+      tmrBlinkEnable = false;
+    }                                 
   }
 }
 
@@ -397,7 +406,7 @@ int gearSelect()
   {
     //A ligação do hardware é importante para dar certo
     if (!digitalRead(count))
-    {
+    {     //oi
       gear = count - (INDICADOR_DA_PRIMEIRA_MARCHA - 1);
     }
     else
@@ -481,7 +490,11 @@ void taskScheduler(void)
       tmrBlinkCount = 0;
       tmrBlinkOverflow = true;
     }
+  }else
+  {
+    //Serial.println("Deu ruim,");
   }
+  
 
   if (tmrAcele2Enable)
   {
@@ -510,12 +523,12 @@ void setupWIRE()
   Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
   Wire.write(0x6B);             //make the reset (place a 0 into the 6B register)
   Wire.write(0x00);
-  Wire.endTransmission(true); //end the transmission
+  Wire.endTransmission(false); //end the transmission
   //Gyro config
   Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
   Wire.write(0x1B);             //We want to write to the GYRO_CONFIG register (1B hex)
   Wire.write(0x10);             //Set the register bits as 00010000 (1000dps full scale)
-  Wire.endTransmission(true);   //End the transmission with the gyro
+  Wire.endTransmission(false);   //End the transmission with the gyro
   //Acc config
   Wire.beginTransmission(0x68); //Start communication with the address found during search.
   Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register
