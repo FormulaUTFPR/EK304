@@ -435,12 +435,12 @@ void setupWIRE()
   Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
   Wire.write(0x6B);             //make the reset (place a 0 into the 6B register)
   Wire.write(0x00);
-  Wire.endTransmission(true); //end the transmission
+  Wire.endTransmission(false); //end the transmission
   //Gyro config
   Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
   Wire.write(0x1B);             //We want to write to the GYRO_CONFIG register (1B hex)
   Wire.write(0x10);             //Set the register bits as 00010000 (1000dps full scale)
-  Wire.endTransmission(true);   //End the transmission with the gyro
+  Wire.endTransmission(false);   //End the transmission with the gyro
   //Acc config
   Wire.beginTransmission(0x68); //Start communication with the address found during search.
   Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register

@@ -133,6 +133,7 @@ can_frame canSuspRear;
 #define MIN_PRES 0        //Valor min em bar
 #define MAX_PRES 10       //Valor máx em bar
 #define NUM_CONST 1       //Valor para dividir o sensor de velocidade para obter a velocidade
+#define WHEEL_SIZE 13     //Tamanho da roda
 bool estadoLed = false;   //variavel que define o estado do led
 
 #define TMR_BASE 100000     //Temporizador base para o Timer1
@@ -147,10 +148,9 @@ bool estadoLed = false;   //variavel que define o estado do led
 unsigned long InitialTime; //Tempo em Microsegundos em que ocorreu o pulso
 unsigned long TimeDif;     //Valor da diferenca de tempo entre dois pulsos
 
-unsigned long TimeDif; //Valor da diferenca de tempo entre dois pulsos
-unsigned int average;  //Media entre alguns RPMs para ter um valor com menos interferencias
-unsigned long RPM;     //RPM nao suavizado - o suavizado é a media
-unsigned int counter;  //Contador para fazer a media
+unsigned int average;          //Media entre alguns RPMs para ter um valor com menos interferencias
+unsigned long RPM;             //RPM nao suavizado - o suavizado é a media
+volatile unsigned int counter; //Contador para fazer a media
 
 MCP2515 mcp2515(CAN_CS);
 
@@ -205,9 +205,11 @@ unsigned int taskSpeed()
     //Calcula os pulsos para virar rotação por min
 
     TimeDif = micros() - InitialTime; //Calcula a diferenca de tempo entre dois pulsos
-    RPM = 60000000 / TimeDif;         //Faz o perídodo virar frequencia e multiplica por 60 a frequencia para ter rotacoes por MINUTO
+    RPM = 36000 / TimeDif;            //Faz o perídodo virar frequencia e multiplica por 60 a frequencia para ter rotacoes por HORA, multiplica por 1000000 pra transformar microsegundos em segundos, divide por 100000 pra fazer cm pra km
     average = RPM * counter;          //Multiplica o RPM por (idealmente) NUM_AMOSTRAGEM para ter a media entre os NUM_AMOSTRAGEM periodos
     average = average / NUM_CONST;    //Divide a media pelo numero de centelhas numa revolução
+
+    average = average * 2 * 3.14 * WHEEL_SIZE * 2.54;
 
     InitialTime = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
   }
@@ -424,14 +426,16 @@ void setupInit()
   digitalWrite(LED_CPU, LOW);
   delay(100);
 
+  analogReference(INTERNAL);
+
   //Modos das entradas
 
   pinMode(PIN_SPEED, INPUT_PULLUP); //Toda vez que tem uma subida chama a tarefa
   pinMode(PIN_PRESSURE, INPUT);
   pinMode(PIN_OIL_TEMP, INPUT);
   pinMode(PIN_RIGHT_SUSP, INPUT);
-  pinMode(PIN_LEFT_SUSP, INPUT);                                         //LED do módulo
-  attachInterrupt(digitalPinToInterrupt(PIN_SPEED), ISR_SPEED, FALLING); //Quando o sensor passa de HIGH pra LOW, chama a funcao taskPulso
+  pinMode(PIN_LEFT_SUSP, INPUT);                                        //LED do módulo
+  attachInterrupt(digitalPinToInterrupt(PIN_SPEED), ISR_SPEED, RISING); //Quando o sensor passa de HIGH pra LOW, chama a funcao taskPulso
 }
 
 void setupCAN()
