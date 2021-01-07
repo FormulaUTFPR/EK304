@@ -338,11 +338,11 @@ void taskModu2(void)
     if (mcp2515.sendMessage(&Modulo2Acc) != MCP2515::ERROR::ERROR_OK)
     { // envia os dados de um CAN_Frame na CAN
       tmrBlinkEnable = false;
-    } 
+    }
     if (mcp2515.sendMessage(&Modulo2Gyro) != MCP2515::ERROR::ERROR_OK)
     { // envia os dados de um CAN_Frame na CAN
       tmrBlinkEnable = false;
-    }                                 
+    }
   }
 }
 
@@ -406,7 +406,7 @@ int gearSelect()
   {
     //A ligação do hardware é importante para dar certo
     if (!digitalRead(count))
-    {     //oi
+    { //oi
       gear = count - (INDICADOR_DA_PRIMEIRA_MARCHA - 1);
     }
     else
@@ -490,11 +490,12 @@ void taskScheduler(void)
       tmrBlinkCount = 0;
       tmrBlinkOverflow = true;
     }
-  }else
-  {
-    //Serial.println("Deu ruim,");
   }
-  
+  else
+  {
+    tmrBlinkEnable = true;
+    tmrBlinkCount = 0;
+  }
 
   if (tmrAcele2Enable)
   {
@@ -528,7 +529,7 @@ void setupWIRE()
   Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
   Wire.write(0x1B);             //We want to write to the GYRO_CONFIG register (1B hex)
   Wire.write(0x10);             //Set the register bits as 00010000 (1000dps full scale)
-  Wire.endTransmission(false);   //End the transmission with the gyro
+  Wire.endTransmission(false);  //End the transmission with the gyro
   //Acc config
   Wire.beginTransmission(0x68); //Start communication with the address found during search.
   Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register

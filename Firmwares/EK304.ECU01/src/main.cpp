@@ -29,8 +29,8 @@ void taskScheduler(void);
 void taskBlink(void);
 
 //DEFINICAO DAS PORTAS
-#define PIN_SUSP_DIREITA A2  //Porta para o sensor da suspensao direita
-#define PIN_SUSP_ESQUERDA A3 //Porta para o sensor da suspensao esquerda
+#define PIN_SUSP_DIREITA A1  //Porta para o sensor da suspensao direita
+#define PIN_SUSP_ESQUERDA A0 //Porta para o sensor da suspensao esquerda
 #define LED_CPU 8            //Porta para o LED do módulo
 
 #define CAN_SCK 13
@@ -110,7 +110,6 @@ void setup()
 {
   pinMode(LED_CPU, OUTPUT);
 
-
   pinMode(PIN_SUSP_DIREITA, INPUT);
   pinMode(PIN_SUSP_ESQUERDA, INPUT);
 
@@ -125,7 +124,7 @@ void setup()
   Timer1.initialize(TMR_BASE);
   Timer1.attachInterrupt(taskScheduler);
 
-  tmrSuspEnable = false;
+  tmrSuspEnable = true;
   tmrBlinkEnable = false;
   tmrAcele1Enable = false;
   tmrAcele2Enable = true;
@@ -133,8 +132,7 @@ void setup()
   digitalWrite(LED_CPU, HIGH);
   delay(100);
   digitalWrite(LED_CPU, LOW);
-  delay(1000);
-
+  delay(100);
 }
 
 void loop()
@@ -211,7 +209,7 @@ void taskBlink(void)
 void taskModu1(void)
 {
   if (tmrAcele1Overflow)
-  {/*
+  { /*
     Wire.beginTransmission(MPU1); //Transmissao
     Wire.write(0x3B);             //Endereco 0x3B (ACCEL_XOUT_H)
     Wire.endTransmission(false);
@@ -330,7 +328,6 @@ void taskModu1(void)
     }*/
     tmrAcele2Overflow = false;
   }
-
 }
 
 //SEGUNDO MODULO GY-521
@@ -383,7 +380,7 @@ void taskModu2(void)
     if (mcp2515.sendMessage(&Modulo2Acc) != MCP2515::ERROR::ERROR_OK)
     { // envia os dados de um CAN_Frame na CAN
       tmrBlinkEnable = false;
-    } 
+    }
     if (mcp2515.sendMessage(&Modulo2Gyro) != MCP2515::ERROR::ERROR_OK)
     { // envia os dados de um CAN_Frame na CAN
       tmrBlinkEnable = false;
@@ -417,10 +414,10 @@ void taskSusp(void)
     unsigned int sender2 = analogRead(PIN_SUSP_ESQUERDA);
 
     Suspensao.data[0] = (sender1 >> 8) & 0xFF;
-    Suspensao.data[1] = sender1 & 0x03;
+    Suspensao.data[1] = sender1 & 0xFF;
 
     Suspensao.data[2] = (sender2 >> 8) & 0xFF;
-    Suspensao.data[3] = sender2 & 0x03;
+    Suspensao.data[3] = sender2 & 0xFF;
 
     if (mcp2515.sendMessage(&Suspensao) != MCP2515::ERROR::ERROR_OK)
     { // envia os dados de um CAN_Frame na CAN
@@ -456,7 +453,7 @@ void setupCAN()
 
   //SUSPENSAO
   Suspensao.can_id = EK304CAN_ID_SUSP_FRONT;
-  Suspensao.can_dlc = 2;
+  Suspensao.can_dlc = 4;
 }
 
 void setupWIRE()
@@ -507,7 +504,7 @@ void setupWIRE()
   Wire.beginTransmission(0x68); //begin, Send the slave adress (in this case 68)
   Wire.write(0x1B);             //We want to write to the GYRO_CONFIG register (1B hex)
   Wire.write(0x10);             //Set the register bits as 00010000 (1000dps full scale)
-  Wire.endTransmission(false);   //End the transmission with the gyro
+  Wire.endTransmission(false);  //End the transmission with the gyro
   //Acc config
   Wire.beginTransmission(0x68); //Start communication with the address found during search.
   Wire.write(0x1C);             //We want to write to the ACCEL_CONFIG register

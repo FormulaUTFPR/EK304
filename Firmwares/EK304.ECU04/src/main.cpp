@@ -74,8 +74,8 @@ bool tmrBlinkOverflow = false;
 bool tmrBlinkEnable = false;
 int tmrBlinkCount = 0;
 
-bool flagSpeed = false; //Cria uma flag para dizer que o evento pulso do sensor de velocidade ocorreu
-int numPulses = 0;      //Cria uma variável para armazenar a quantidade de pulsos que ocorreram antes da função ser tratada
+bool flagSpeed = false;     //Cria uma flag para dizer que o evento pulso do sensor de velocidade ocorreu
+volatile int numPulses = 0; //Cria uma variável para armazenar a quantidade de pulsos que ocorreram antes da função ser tratada
 
 //  VARIÁVEIS ANTIGAS ACELERÔMETRO
 
@@ -132,8 +132,8 @@ can_frame canSuspRear;
 #define MAX_READ_PRES 921 //Leitura máxima de 4,5v --Ajustar
 #define MIN_PRES 0        //Valor min em bar
 #define MAX_PRES 10       //Valor máx em bar
-#define NUM_CONST 1       //Valor para dividir o sensor de velocidade para obter a velocidade
-#define WHEEL_SIZE 13     //Tamanho da roda
+#define NUM_CONST 8       //Valor para dividir o sensor de velocidade para obter a velocidade
+#define WHEEL_SIZE 0.255  //Tamanho da roda
 bool estadoLed = false;   //variavel que define o estado do led
 
 #define TMR_BASE 100000     //Temporizador base para o Timer1
@@ -205,11 +205,13 @@ unsigned int taskSpeed()
     //Calcula os pulsos para virar rotação por min
 
     TimeDif = micros() - InitialTime; //Calcula a diferenca de tempo entre dois pulsos
-    RPM = 36000 / TimeDif;            //Faz o perídodo virar frequencia e multiplica por 60 a frequencia para ter rotacoes por HORA, multiplica por 1000000 pra transformar microsegundos em segundos, divide por 100000 pra fazer cm pra km
+    RPM = 60 * 1000000 / TimeDif;     //Faz o perídodo virar frequencia e multiplica por 60 a frequencia para ter rotacoes por HORA, multiplica por 1000000 pra transformar microsegundos em segundos, divide por 100000 pra fazer cm pra km
     average = RPM * counter;          //Multiplica o RPM por (idealmente) NUM_AMOSTRAGEM para ter a media entre os NUM_AMOSTRAGEM periodos
     average = average / NUM_CONST;    //Divide a media pelo numero de centelhas numa revolução
 
-    average = average * 2 * 3.14 * WHEEL_SIZE * 2.54;
+    average = average * 2 * 3.14 * WHEEL_SIZE;
+
+    average = average / 216;
 
     InitialTime = micros(); //Armazena o valor atual para calcular a diferença a próxima vez que for chamado
   }
@@ -279,10 +281,10 @@ void taskSusp(void)
     unsigned int sender2 = analogRead(PIN_RIGHT_SUSP);
 
     canSuspRear.data[0] = (sender1 >> 8) & 0xFF;
-    canSuspRear.data[1] = sender1 & 0x03;
+    canSuspRear.data[1] = sender1 & 0xFF;
 
     canSuspRear.data[2] = (sender2 >> 8) & 0xFF;
-    canSuspRear.data[3] = sender2 & 0x03;
+    canSuspRear.data[3] = sender2 & 0xFF;
 
     if (mcp2515.sendMessage(&canSuspRear) != MCP2515::ERROR::ERROR_OK)
     { // envia os dados de um CAN_Frame na CAN
