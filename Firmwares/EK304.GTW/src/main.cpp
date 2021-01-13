@@ -8,7 +8,7 @@
 /**************************************************************************************************************************************/
 /* CONFIGURAÇÕES DO PROJETO                                                                                                           */
 /**************************************************************************************************************************************/
-#define FIRMWARE_VERSION "v0.1.2"
+#define FIRMWARE_VERSION "v0.2.0"
 
 #define TMR_BASE 100000          //Timer base pelo qual "chamaremos" e escalonador
 #define TMR_BLINK 1000000        //Tempo que o LED fica ligado
@@ -39,7 +39,7 @@
 #define SENSOR_ROTATION_ID 0x02
 #define SENSOR_MOTOR_TEMPERATURE_ID 0x03
 #define SENSOR_GEAR_ID 0x04
-#define SENSOR_GPS_LATITUDE_ID  0x05
+#define SENSOR_GPS_LATITUDE_ID 0x05
 #define SENSOR_GPS_LONGITUDE_ID 0x06
 #define SENSOR_GPS_ALTITUDE_ID 0x07
 #define SENSOR_GPS_FIX_ID 0x08
@@ -52,11 +52,10 @@
 #define SENSOR_LAMBDA_ID 0x0F
 #define SENSOR_OIL_PRESSURE_ID 0x10
 #define SENSOR_OIL_TEMPERATURE_ID 0x11
-#define SENSOR_REAR_LEFT_SUSPENSION_ID  0x12
+#define SENSOR_REAR_LEFT_SUSPENSION_ID 0x12
 #define SENSOR_REAR_RIGHT_SUSPENSION_ID 0x13
 #define SENSOR_FRONT_LEFT_SUSPENSION_ID 0x14
 #define SENSOR_FRONT_RIGHT_SUSPENSION_ID 0x15
-
 
 // parâmetros dos sensores
 #define SENSOR_GEAR_MAX 6
@@ -73,6 +72,11 @@
 #define STRING_DISPLAY_TEAMNAME "Formula UTFPR"
 #define STRING_DISPLAY_CARNAME "EK-304"
 #define STRING_DISPLAY_DATETIME_MAX 33
+
+// Telas
+
+#define SCREEN_NUMBER_SPEED 01
+#define SCREEN_NUMBER_ENGINE 02
 
 // Endereço de memória do número do teste
 
@@ -197,19 +201,19 @@ void setAckTime(int origin);
 class Sensor
 {
 public:
-  String nome;
-  String unidade;
-  long valor;
+  String name;
+  String unit;
+  long value;
   unsigned long canID;
-  unsigned long ultimoRecebimento;
+  unsigned long lastReceived;
   int origin;
   int frequency;
 
   Sensor()
   {
-    nome = "";
-    unidade = "";
-    valor = 0.0;
+    name = "";
+    unit = "";
+    value = 0.0;
     canID = 0;
     origin = 0;
     frequency = 0;
@@ -217,9 +221,9 @@ public:
 
   Sensor(String n, String u, unsigned long id, int o, int f)
   {
-    nome = n;
-    unidade = u;
-    valor = 0.0;
+    name = n;
+    unit = u;
+    value = 0.0;
     canID = id;
     origin = o;
     frequency = f;
@@ -227,11 +231,11 @@ public:
 
   String ToString()
   {
-    String s = nome;
+    String s = name;
     s += ": ";
-    s += valor;
+    s += value;
     s += " ";
-    s += unidade;
+    s += unit;
 
     return s;
   }
@@ -535,7 +539,7 @@ bool tmrCanCheckErrorOverflow = false; // sinaliza quando houve estouro do conta
 int tmrCanCheckErrorCount = 0;         // conta quantos múltiplos de TMR_BASE se passaram para o tempo de teste de comunicação CAN com os módulos
 
 // informações da tela
-Sensor senOverview[4]; // armazena uma cópia dos valores dos sensores (buffer) a serem mostrados no display
+Sensor senOverview[4]; // armazena uma cópia dos valuees dos sensores (buffer) a serem mostrados no display
 DateTime horaAtual;    // armazena a hora a ser mostrada na tela
 int telaAtual;
 
@@ -543,6 +547,7 @@ bool gpsFlagNewData = false; // indica quando um novo dado (válido ou não) che
 bool flagCheckSum = false;   // indica quando está sendo verificado o checksum
 int contCheckSum = 0;        // conta quando dados do checksum já foram recebidos
 int gpsData = 0;             // identifica qual o dado está sendo recebido pelo GPS
+int scrEncoder = 0;          // Qual tela deve estar baseado no encoder
 
 // sensores
 Sensor sensors[SENSOR_QTTY_TOTAL];
@@ -562,7 +567,7 @@ long tmpRecebimentoAckECU04 = 0; // tempo do ultimo recebimento do ACK da ECU04
 long tmpRecebimentoAckECU15 = 0; // tempo do ultimo recebimento do ACK da ECU15
 
 // encoder
-int encContadorPosicao; // armazena o valor do contador de posição do encoder (variável auxilar)
+int encContadorPosicao; // armazena o value do contador de posição do encoder (variável auxilar)
 int encUltimaPosicao;   // armazena a ultima posição do encoder (variável auxilar)
 int encLeituraClock;    // armazena a leitura do pino CLK do encoder (variável auxilar)
 bool encSentidoHorario; // armazena o sentido de rotação do encoder (variável auxilar)
@@ -578,7 +583,7 @@ String bufSerial; // buffer para transmissão na serial
 
 // adc
 int amostrasVBat = 0;
-float ValorVBat = 0.0;
+float valueVBat = 0.0;
 
 // Nome do arquivo
 String stringFileName;
@@ -667,7 +672,7 @@ void setupSensors()
   sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID] = Sensor("Air Temp.", "°C", SENSOR_AIR_INTAKE_TEMPERATURE_ID, EK304CAN_ID_ADDRESS_ECU02, EK304CAN_AIR_TEMP_FREQUENCY);
   sensors[SENSOR_WATER_TEMPERATURE_ID] = Sensor("Water Temp.", "°C", SENSOR_WATER_TEMPERATURE_ID, EK304CAN_ID_ADDRESS_ECU02, EK304CAN_WATER_TEMP_FREQUENCY);
   sensors[SENSOR_TPS_ID] = Sensor("TPS", "%", SENSOR_TPS_ID, EK304CAN_ID_ADDRESS_ECU02, EK304CAN_TPS_FREQUENCY);
-  sensors[SENSOR_LAMBDA_ID] = Sensor("Lambda", "%", SENSOR_LAMBDA_ID, EK304CAN_ID_ADDRESS_ECU02, EK304CAN_LAMBDA_FREQUENCY);
+  sensors[SENSOR_LAMBDA_ID] = Sensor("Lambda", "", SENSOR_LAMBDA_ID, EK304CAN_ID_ADDRESS_ECU02, EK304CAN_LAMBDA_FREQUENCY);
   sensors[SENSOR_OIL_PRESSURE_ID] = Sensor("Oil Pressure", "kPa", SENSOR_OIL_PRESSURE_ID, EK304CAN_ID_ADDRESS_ECU04, EK304CAN_OIL_PRESSURE_FREQUENCY);
   sensors[SENSOR_OIL_TEMPERATURE_ID] = Sensor("Oil Temp.", "°C", SENSOR_OIL_TEMPERATURE_ID, EK304CAN_ID_ADDRESS_ECU04, EK304CAN_OIL_TEMP_FREQUENCY);
   sensors[SENSOR_REAR_LEFT_SUSPENSION_ID] = Sensor("RL Susp.", "°", SENSOR_REAR_LEFT_SUSPENSION_ID, EK304CAN_ID_ADDRESS_ECU04, EK304CAN_SUSP_REAR_FREQUENCY);
@@ -676,7 +681,7 @@ void setupSensors()
   sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID] = Sensor("FR Susp", "°", SENSOR_FRONT_RIGHT_SUSPENSION_ID, EK304CAN_ID_ADDRESS_ECU01, EK304CAN_SUSP_FRONT_FREQUENCY);
 
   //Acelerometros
-
+  // Não é necessário fazer essa parte da programação agora, só quando o filtro de kalman for ser aplicado em versão live
   //acc[EK304CAN_ID_ACC_01];
 }
 
@@ -702,7 +707,7 @@ void loop()
 /**************************************************************************************************************************************/
 void taskMain()
 {
-  //Serial.println(sensors[SENSOR_GPS_HDOP_ID].valor);
+  //Serial.println(sensors[SENSOR_GPS_HDOP_ID].value);
   if (stateMachine == STATE_STARTUP_LOGO)
   {
     if (tmrStartupLogoOverflow)
@@ -742,22 +747,24 @@ void taskMain()
 
     if (encoder.giro == 1)
     {
-      sensors[SENSOR_GEAR_ID].valor++;
-      //sensors[SENSOR_SPEED_ID].valor++;
-      if (sensors[SENSOR_GEAR_ID].valor > 6)
-        sensors[SENSOR_GEAR_ID].valor = 6;
-      encoder.giro = 0;
-      tmrSpinDebouncingEnabled = true;
+      sensors[SENSOR_GEAR_ID].value++;
+      //sensors[SENSOR_SPEED_ID].value++;
+      if (sensors[SENSOR_GEAR_ID].value > 6)
+        sensors[SENSOR_GEAR_ID].value = 6;
+      encoder.giro = 0;                // Limpar a variável depois do tratamento
+      tmrSpinDebouncingEnabled = true; // Ativar a função para deboiuncing
+      scrEncoder++;                    // Incrementa o value dessa variável para avançar uma tela
     }
 
     if (encoder.giro == -1)
     {
-      sensors[SENSOR_GEAR_ID].valor--;
-      //sensors[SENSOR_SPEED_ID].valor--;
-      if (sensors[SENSOR_GEAR_ID].valor < 0)
-        sensors[SENSOR_GEAR_ID].valor = 0;
-      encoder.giro = 0;
-      tmrSpinDebouncingEnabled = true;
+      sensors[SENSOR_GEAR_ID].value--;
+      //sensors[SENSOR_SPEED_ID].value--;
+      if (sensors[SENSOR_GEAR_ID].value < 0)
+        sensors[SENSOR_GEAR_ID].value = 0;
+      encoder.giro = 0;                // Limpar a variável depois do tratamento
+      tmrSpinDebouncingEnabled = true; // Ativar a função para debouncing
+      scrEncoder--;                    // Decrementa o value dessa variável para voltar uma tela
     }
 
     if (tmrSpinDebouncingOverflow)
@@ -843,17 +850,17 @@ void taskScheduler()
   }
 }
 
-void taskADC() //Task para pegar o valor de tensão da bateria
+void taskADC() //Task para pegar o value de tensão da bateria
 {
   if (amostrasVBat < SENSOR_VBAT_SAMPLES)
   {
-    ValorVBat += (float)(analogRead(V_BAT) * 15.0 / 1023.0);
+    valueVBat += (float)(analogRead(V_BAT) * 15.0 / 1023.0);
     amostrasVBat++;
   }
   else
   {
-    sensors[SENSOR_VOLTAGE_BATTERY_ID].valor = (float)(ValorVBat / SENSOR_VBAT_SAMPLES);
-    ValorVBat = 0.0;
+    sensors[SENSOR_VOLTAGE_BATTERY_ID].value = (float)(valueVBat / SENSOR_VBAT_SAMPLES);
+    valueVBat = 0.0;
     amostrasVBat = 0;
   }
 }
@@ -871,7 +878,7 @@ void taskErrorsMonitor()
   else // verifica demais erros do GPS
   {
     // verifica se há erro de falta de sinal do GPS
-    if ((int)(sensors[SENSOR_GPS_FIX_ID].valor) == 0)
+    if ((int)(sensors[SENSOR_GPS_FIX_ID].value) == 0)
     {
       sysErrors[ERROR_GPS_NOSIGNAL_ID].status = true;
       listErrors.add(sysErrors[ERROR_GPS_NOSIGNAL_ID].ToStringCenter(ERROR_MSGSIZE));
@@ -881,7 +888,7 @@ void taskErrorsMonitor()
       sysErrors[ERROR_GPS_NOSIGNAL_ID].status = false;
 
       // verifica se há erro de baixa precisão de GPS
-      if (sensors[SENSOR_GPS_HDOP_ID].valor > SENSOR_GPSHDOP_REF)
+      if (sensors[SENSOR_GPS_HDOP_ID].value > SENSOR_GPSHDOP_REF)
       {
         sysErrors[ERROR_GPS_LOWSIGNAL_ID].status = true;
         listErrors.add(sysErrors[ERROR_GPS_LOWSIGNAL_ID].ToStringCenter(ERROR_MSGSIZE));
@@ -894,7 +901,7 @@ void taskErrorsMonitor()
   }
 
   // verifica se há sobretensão
-  if (sensors[SENSOR_VOLTAGE_BATTERY_ID].valor > SENSOR_VBAT_OVERVOLTAGE)
+  if (sensors[SENSOR_VOLTAGE_BATTERY_ID].value > SENSOR_VBAT_OVERVOLTAGE)
   {
     sysErrors[ERROR_ELECTRICAL_OVERVOLTAGE_ID].status = true;
     listErrors.add(sysErrors[ERROR_ELECTRICAL_OVERVOLTAGE_ID].ToStringCenter(ERROR_MSGSIZE));
@@ -903,7 +910,7 @@ void taskErrorsMonitor()
     sysErrors[ERROR_ELECTRICAL_OVERVOLTAGE_ID].status = false;
 
   // verifica se há subtensão
-  if (sensors[SENSOR_VOLTAGE_BATTERY_ID].valor < SENSOR_VBAT_UNDERVOLTAGE)
+  if (sensors[SENSOR_VOLTAGE_BATTERY_ID].value < SENSOR_VBAT_UNDERVOLTAGE)
   {
     sysErrors[ERROR_ELECTRICAL_UNDERVOLTAGE_ID].status = true;
     listErrors.add(sysErrors[ERROR_ELECTRICAL_UNDERVOLTAGE_ID].ToStringCenter(ERROR_MSGSIZE));
@@ -1217,7 +1224,7 @@ void taskGPS()
                   {
                     if (bufSerial[j] >= '0' && bufSerial[j] <= '9')
                     {
-                      sensors[SENSOR_GPS_FIX_ID].valor = value;
+                      sensors[SENSOR_GPS_FIX_ID].value = value;
                     }
                   }
                   if (field == 8)
@@ -1242,13 +1249,13 @@ void taskGPS()
               }
             }
 
-            if ((int)(sensors[SENSOR_GPS_FIX_ID].valor) > 0)
+            if ((int)(sensors[SENSOR_GPS_FIX_ID].value) > 0)
             {
-              sensors[SENSOR_GPS_LATITUDE_ID].valor = (float)(gradLat + minutesLat / 60.0);
-              sensors[SENSOR_GPS_LONGITUDE_ID].valor = (float)(gradLong + minutesLong / 60.0);
+              sensors[SENSOR_GPS_LATITUDE_ID].value = (float)(gradLat + minutesLat / 60.0);
+              sensors[SENSOR_GPS_LONGITUDE_ID].value = (float)(gradLong + minutesLong / 60.0);
             }
 
-            sensors[SENSOR_GPS_HDOP_ID].valor = (float)(intHdop + decHdop / 100.0);
+            sensors[SENSOR_GPS_HDOP_ID].value = (float)(intHdop + decHdop / 100.0);
           }
 
           gpsFlagNewData = false;
@@ -1303,13 +1310,13 @@ void taskCAN()
     {
     case EK304CAN_ID_RPM:
       //RPM
-      sensors[SENSOR_ROTATION_ID].valor = frame.data[1];                          //Nessa é necessário dar shift dos bits
-      sensors[SENSOR_ROTATION_ID].valor = sensors[SENSOR_ROTATION_ID].valor << 8; //Para ter o pacote com os dados certos
-      sensors[SENSOR_ROTATION_ID].valor += frame.data[0];                         //Importante para ter uma resolução boa
+      sensors[SENSOR_ROTATION_ID].value = frame.data[1];                          //Nessa é necessário dar shift dos bits
+      sensors[SENSOR_ROTATION_ID].value = sensors[SENSOR_ROTATION_ID].value << 8; //Para ter o pacote com os dados certos
+      sensors[SENSOR_ROTATION_ID].value += frame.data[0];                         //Importante para ter uma resolução boa
 
       setAckTime(sensors[SENSOR_ROTATION_ID].origin); //Essa função serve para "resetar" o timer da ACK, se tem algum módulo desconectado ele vai acusar no display
 
-      Serial.println(sensors[SENSOR_ROTATION_ID].valor);
+      Serial.println(sensors[SENSOR_ROTATION_ID].value);
       break;
     case EK304CAN_ID_ACC_01:
       //Acelerômetro 1
@@ -1320,7 +1327,7 @@ void taskCAN()
     case EK304CAN_ID_ACC_03:
       //Acelerômetro 3
       break;
-        case EK304CAN_ID_GYRO_01:
+    case EK304CAN_ID_GYRO_01:
       //Giroscopio 1
       break;
     case EK304CAN_ID_GYRO_02:
@@ -1331,19 +1338,19 @@ void taskCAN()
       break;
     case EK304CAN_ID_LAMBA:
       //Lambda
-      sensors[SENSOR_LAMBDA_ID].valor = frame.data[0];
+      sensors[SENSOR_LAMBDA_ID].value = frame.data[0];
 
       setAckTime(sensors[SENSOR_LAMBDA_ID].origin);
       break;
     case EK304CAN_ID_GEAR_POSITION:
       //Gear Position
-      sensors[SENSOR_GEAR_ID].valor = frame.data[0];
+      sensors[SENSOR_GEAR_ID].value = frame.data[0];
 
       setAckTime(sensors[SENSOR_GEAR_ID].origin);
       break;
     case EK304CAN_ID_TEMPERATURE:
       //Temperature
-      sensors[SENSOR_MOTOR_TEMPERATURE_ID].valor = frame.data[1];
+      sensors[SENSOR_MOTOR_TEMPERATURE_ID].value = frame.data[1];
 
       setAckTime(sensors[SENSOR_MOTOR_TEMPERATURE_ID].origin);
       break;
@@ -1352,65 +1359,65 @@ void taskCAN()
       break;
     case EK304CAN_ID_SUSP_FRONT:
       //SuspFront
-      sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = frame.data[1] / (2.8 + 1 / 30);
-      sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor = sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor << 8;
-      sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].valor += frame.data[0] / (2.8 + 1 / 30);
-      sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor = frame.data[3] / (2.8 + 1 / 30);
-      sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor = sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor << 8;
-      sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].valor += frame.data[2] / (2.8 + 1 / 30);
+      sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].value = frame.data[1] / (2.8 + 1 / 30);
+      sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].value = sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].value << 8;
+      sensors[SENSOR_FRONT_LEFT_SUSPENSION_ID].value += frame.data[0] / (2.8 + 1 / 30);
+      sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].value = frame.data[3] / (2.8 + 1 / 30);
+      sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].value = sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].value << 8;
+      sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].value += frame.data[2] / (2.8 + 1 / 30);
 
       setAckTime(sensors[SENSOR_FRONT_RIGHT_SUSPENSION_ID].origin);
       break;
     case EK304CAN_ID_OIL_PRESSURE:
       //OilPressure
-      sensors[SENSOR_OIL_PRESSURE_ID].valor = frame.data[0];
+      sensors[SENSOR_OIL_PRESSURE_ID].value = frame.data[0];
 
       setAckTime(sensors[SENSOR_OIL_PRESSURE_ID].origin);
       break;
     case EK304CAN_ID_OIL_TEMPERATURE:
       //OilTemp
-      sensors[SENSOR_OIL_TEMPERATURE_ID].valor = frame.data[0];
+      sensors[SENSOR_OIL_TEMPERATURE_ID].value = frame.data[0];
 
       setAckTime(sensors[SENSOR_OIL_TEMPERATURE_ID].origin);
       break;
     case EK304CAN_ID_SPEED:
       //Speed
-      sensors[SENSOR_SPEED_ID].valor = frame.data[0];
+      sensors[SENSOR_SPEED_ID].value = frame.data[0];
 
       setAckTime(sensors[SENSOR_SPEED_ID].origin);
       break;
     case EK304CAN_ID_AIR_TEMP:
       //AirTemp
-      sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].valor = frame.data[0];
+      sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].value = frame.data[0];
 
       setAckTime(sensors[SENSOR_AIR_INTAKE_TEMPERATURE_ID].origin);
       break;
     case EK304CAN_ID_WATER_TEMPERATURE:
       //WaterTemp
-      sensors[SENSOR_WATER_TEMPERATURE_ID].valor = frame.data[0];
+      sensors[SENSOR_WATER_TEMPERATURE_ID].value = frame.data[0];
 
       setAckTime(sensors[SENSOR_WATER_TEMPERATURE_ID].origin);
       break;
     case EK304CAN_ID_TPS:
       //TPS
-      sensors[SENSOR_TPS_ID].valor = frame.data[0];
+      sensors[SENSOR_TPS_ID].value = frame.data[0];
 
       setAckTime(sensors[SENSOR_TPS_ID].origin);
       break;
     case EK304CAN_ID_SUSP_REAR: //SuspRear
-      sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = frame.data[1] / (2.8 + 1 / 30);
-      sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor = sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor << 8;
-      sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].valor += frame.data[0] / (2.8 + 1 / 30);
-      sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor = frame.data[3] / (2.8 + 1 / 30);
-      sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor = sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor << 8;
-      sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].valor += frame.data[2] / (2.8 + 1 / 30);
+      sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].value = frame.data[1] / (2.8 + 1 / 30);
+      sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].value = sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].value << 8;
+      sensors[SENSOR_REAR_LEFT_SUSPENSION_ID].value += frame.data[0] / (2.8 + 1 / 30);
+      sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].value = frame.data[3] / (2.8 + 1 / 30);
+      sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].value = sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].value << 8;
+      sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].value += frame.data[2] / (2.8 + 1 / 30);
 
       setAckTime(sensors[SENSOR_REAR_RIGHT_SUSPENSION_ID].origin);
 
       break;
     case EK304CAN_ID_MAP:
       //MAP
-      sensors[SENSOR_MAP_ID].valor = frame.data[0];
+      sensors[SENSOR_MAP_ID].value = frame.data[0];
 
       setAckTime(sensors[SENSOR_MAP_ID].origin);
       break;
@@ -1643,76 +1650,86 @@ void scrWelcome()
 
 void scrOverview()
 {
-  String sTemp = "";
-  char cTemp[STRING_DISPLAY_DATETIME_MAX + 1];
-
-  // mostra data e hora atuais
-  u8g.setFont(u8g_font_u8glib_4);
-  horaAtual.ToStringCenter(STRING_DISPLAY_DATETIME_MAX).toCharArray(cTemp, STRING_DISPLAY_DATETIME_MAX + 1);
-  u8g.drawStr(0, 5, cTemp);
-
-  // mostra as informações dos sensores selecionadas
-  sTemp = "";
-  sTemp.concat(senOverview[0].nome);
-  sTemp.concat(": ");
-  sTemp.concat(senOverview[0].valor);
-  sTemp.concat(" ");
-  sTemp.concat(senOverview[0].unidade);
-  sTemp.toCharArray(cTemp, 20);
-  u8g.drawStr(0, 55, cTemp);
-
-  sTemp = "";
-  sTemp.concat(senOverview[1].nome);
-  sTemp.concat(": ");
-  sTemp.concat(senOverview[1].valor);
-  sTemp.concat(" ");
-  sTemp.concat(senOverview[1].unidade);
-  sTemp.toCharArray(cTemp, 20);
-  u8g.drawStr(0, 63, cTemp);
-
-  // mostra a velocidade
-  u8g.setFont(u8g_font_fub20);
-
-  sTemp = "";
-  sTemp.concat((int)(sensors[SENSOR_SPEED_ID].valor));
-  sTemp.toCharArray(cTemp, 4);
-  if (sensors[SENSOR_SPEED_ID].valor >= 100)
-    u8g.drawStr(30, 33, cTemp);
-  else if (sensors[SENSOR_SPEED_ID].valor >= 10)
-    u8g.drawStr(37, 33, cTemp);
-  else
-    u8g.drawStr(45, 33, cTemp);
-
-  u8g.setFont(u8g_font_5x7);
-
-  sTemp = "";
-  sTemp.concat(sensors[SENSOR_SPEED_ID].unidade);
-  sTemp.toCharArray(cTemp, 20);
-  u8g.drawStr(80, 33, cTemp);
-
-  // mostra a marcha
-  u8g.setFont(u8g_font_5x7);
-
-  if (sensors[SENSOR_GEAR_ID].valor >= SENSOR_GEAR_MIN && sensors[SENSOR_GEAR_ID].valor <= SENSOR_GEAR_MAX)
+  switch (scrEncoder) // Muda a tela baseado na entrada do Encoder
   {
-    sTemp = sensors[SENSOR_GEAR_ID].nome;
-    sTemp += ": ";
-    if ((int)(sensors[SENSOR_GEAR_ID].valor) == 0)
-      sTemp += "N";
-    else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 1)
-      sTemp += "1st";
-    else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 2)
-      sTemp += "2nd";
-    else if ((int)(sensors[SENSOR_GEAR_ID].valor) == 3)
-      sTemp += "3rd";
-    else
-    {
-      sTemp += (int)(sensors[SENSOR_GEAR_ID].valor);
-      sTemp += "th";
-    }
+  case SCREEN_NUMBER_SPEED:
+    String sTemp = "";
+    char cTemp[STRING_DISPLAY_DATETIME_MAX + 1];
 
+    // mostra data e hora atuais
+    u8g.setFont(u8g_font_u8glib_4);
+    horaAtual.ToStringCenter(STRING_DISPLAY_DATETIME_MAX).toCharArray(cTemp, STRING_DISPLAY_DATETIME_MAX + 1);
+    u8g.drawStr(0, 5, cTemp);
+
+    // mostra as informações dos sensores selecionadas
+    sTemp = "";
+    sTemp.concat(senOverview[0].name);
+    sTemp.concat(": ");
+    sTemp.concat(senOverview[0].value);
+    sTemp.concat(" ");
+    sTemp.concat(senOverview[0].unit);
     sTemp.toCharArray(cTemp, 20);
-    u8g.drawStr(80, 23, cTemp);
+    u8g.drawStr(0, 55, cTemp);
+
+    sTemp = "";
+    sTemp.concat(senOverview[1].name);
+    sTemp.concat(": ");
+    sTemp.concat(senOverview[1].value);
+    sTemp.concat(" ");
+    sTemp.concat(senOverview[1].unit);
+    sTemp.toCharArray(cTemp, 20);
+    u8g.drawStr(0, 63, cTemp);
+
+    // mostra a velocidade
+    u8g.setFont(u8g_font_fub20);
+
+    sTemp = "";
+    sTemp.concat((int)(sensors[SENSOR_SPEED_ID].value));
+    sTemp.toCharArray(cTemp, 4);
+    if (sensors[SENSOR_SPEED_ID].value >= 100)
+      u8g.drawStr(30, 33, cTemp);
+    else if (sensors[SENSOR_SPEED_ID].value >= 10)
+      u8g.drawStr(37, 33, cTemp);
+    else
+      u8g.drawStr(45, 33, cTemp);
+
+    u8g.setFont(u8g_font_5x7);
+
+    sTemp = "";
+    sTemp.concat(sensors[SENSOR_SPEED_ID].unit);
+    sTemp.toCharArray(cTemp, 20);
+    u8g.drawStr(80, 33, cTemp);
+
+    // mostra a marcha
+    u8g.setFont(u8g_font_5x7);
+
+    if (sensors[SENSOR_GEAR_ID].value >= SENSOR_GEAR_MIN && sensors[SENSOR_GEAR_ID].value <= SENSOR_GEAR_MAX)
+    {
+      sTemp = sensors[SENSOR_GEAR_ID].name;
+      sTemp += ": ";
+      if ((int)(sensors[SENSOR_GEAR_ID].value) == 0)
+        sTemp += "N";
+      else if ((int)(sensors[SENSOR_GEAR_ID].value) == 1)
+        sTemp += "1st";
+      else if ((int)(sensors[SENSOR_GEAR_ID].value) == 2)
+        sTemp += "2nd";
+      else if ((int)(sensors[SENSOR_GEAR_ID].value) == 3)
+        sTemp += "3rd";
+      else
+      {
+        sTemp += (int)(sensors[SENSOR_GEAR_ID].value);
+        sTemp += "th";
+      }
+
+      sTemp.toCharArray(cTemp, 20);
+      u8g.drawStr(80, 23, cTemp);
+
+      break SCREEN_NUMBER_ENGINE;
+
+    default:
+      scrEncoder = SCREEN_NUMBER_SPEED;
+      break;
+    }
 
     // mostra erros na tela
     if (flagErrorsFound)
@@ -1738,6 +1755,8 @@ void isrEncoderSpin()
       flagEncoderClockwiseSpin = !digitalRead(ENC_DT);
     else
       flagEncoderClockwiseSpin = digitalRead(ENC_DT);
+
+    Serial.println("ENCODERRR");
 
     flagEncoderSpinEvent = true;
   }
