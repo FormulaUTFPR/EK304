@@ -736,13 +736,11 @@ void taskMain()
   }
   else if (stateMachine == STATE_OVERVIEW)
   {
-    senOverview[0] = sensors[SENSOR_GPS_LATITUDE_ID];
-    senOverview[1] = sensors[SENSOR_GPS_LONGITUDE_ID];
-
     if (encoder.botao == 1)
     {
       encoder.botao = 0;
       intEncoderButtonEnabled = true;
+      scrEncoder = SCREEN_NUMBER_SPEED;
     }
 
     if (encoder.giro == 1)
@@ -1274,7 +1272,6 @@ void taskEncoder()
     encoder.botao = true; // muda estado do botao
     while (!digitalRead(ENC_SW))
     {
-
     }                              // aguarda liberação da tecla
     flagEncoderClickEvent = false; // limpa flag
   }
@@ -1653,83 +1650,90 @@ void scrOverview()
   switch (scrEncoder) // Muda a tela baseado na entrada do Encoder
   {
   case SCREEN_NUMBER_SPEED:
-    String sTemp = "";
-    char cTemp[STRING_DISPLAY_DATETIME_MAX + 1];
+    senOverview[0] = sensors[SENSOR_GPS_LATITUDE_ID];
+    senOverview[1] = sensors[SENSOR_GPS_LONGITUDE_ID];
+    break;
 
-    // mostra data e hora atuais
-    u8g.setFont(u8g_font_u8glib_4);
-    horaAtual.ToStringCenter(STRING_DISPLAY_DATETIME_MAX).toCharArray(cTemp, STRING_DISPLAY_DATETIME_MAX + 1);
-    u8g.drawStr(0, 5, cTemp);
-
-    // mostra as informações dos sensores selecionadas
-    sTemp = "";
-    sTemp.concat(senOverview[0].name);
-    sTemp.concat(": ");
-    sTemp.concat(senOverview[0].value);
-    sTemp.concat(" ");
-    sTemp.concat(senOverview[0].unit);
-    sTemp.toCharArray(cTemp, 20);
-    u8g.drawStr(0, 55, cTemp);
-
-    sTemp = "";
-    sTemp.concat(senOverview[1].name);
-    sTemp.concat(": ");
-    sTemp.concat(senOverview[1].value);
-    sTemp.concat(" ");
-    sTemp.concat(senOverview[1].unit);
-    sTemp.toCharArray(cTemp, 20);
-    u8g.drawStr(0, 63, cTemp);
-
-    // mostra a velocidade
-    u8g.setFont(u8g_font_fub20);
-
-    sTemp = "";
-    sTemp.concat((int)(sensors[SENSOR_SPEED_ID].value));
-    sTemp.toCharArray(cTemp, 4);
-    if (sensors[SENSOR_SPEED_ID].value >= 100)
-      u8g.drawStr(30, 33, cTemp);
-    else if (sensors[SENSOR_SPEED_ID].value >= 10)
-      u8g.drawStr(37, 33, cTemp);
-    else
-      u8g.drawStr(45, 33, cTemp);
-
-    u8g.setFont(u8g_font_5x7);
-
-    sTemp = "";
-    sTemp.concat(sensors[SENSOR_SPEED_ID].unit);
-    sTemp.toCharArray(cTemp, 20);
-    u8g.drawStr(80, 33, cTemp);
-
-    // mostra a marcha
-    u8g.setFont(u8g_font_5x7);
-
-    if (sensors[SENSOR_GEAR_ID].value >= SENSOR_GEAR_MIN && sensors[SENSOR_GEAR_ID].value <= SENSOR_GEAR_MAX)
-    {
-      sTemp = sensors[SENSOR_GEAR_ID].name;
-      sTemp += ": ";
-      if ((int)(sensors[SENSOR_GEAR_ID].value) == 0)
-        sTemp += "N";
-      else if ((int)(sensors[SENSOR_GEAR_ID].value) == 1)
-        sTemp += "1st";
-      else if ((int)(sensors[SENSOR_GEAR_ID].value) == 2)
-        sTemp += "2nd";
-      else if ((int)(sensors[SENSOR_GEAR_ID].value) == 3)
-        sTemp += "3rd";
-      else
-      {
-        sTemp += (int)(sensors[SENSOR_GEAR_ID].value);
-        sTemp += "th";
-      }
-
-      sTemp.toCharArray(cTemp, 20);
-      u8g.drawStr(80, 23, cTemp);
-
-      break SCREEN_NUMBER_ENGINE;
-
-    default:
-      scrEncoder = SCREEN_NUMBER_SPEED;
+  case SCREEN_NUMBER_ENGINE;
+      senOverview[0] = sensors[SENSOR_WATER_TEMPERATURE_ID];
+      senOverview[1] = sensors[SENSOR_OIL_PRESSURE_ID];
       break;
+
+      default:
+    scrEncoder = SCREEN_NUMBER_SPEED;
+    break;
+  }
+
+  String sTemp = "";
+  char cTemp[STRING_DISPLAY_DATETIME_MAX + 1];
+
+  // mostra data e hora atuais
+  u8g.setFont(u8g_font_u8glib_4);
+  horaAtual.ToStringCenter(STRING_DISPLAY_DATETIME_MAX).toCharArray(cTemp, STRING_DISPLAY_DATETIME_MAX + 1);
+  u8g.drawStr(0, 5, cTemp);
+
+  // mostra as informações dos sensores selecionadas
+  sTemp = "";
+  sTemp.concat(senOverview[0].name);
+  sTemp.concat(": ");
+  sTemp.concat(senOverview[0].value);
+  sTemp.concat(" ");
+  sTemp.concat(senOverview[0].unit);
+  sTemp.toCharArray(cTemp, 20);
+  u8g.drawStr(0, 55, cTemp);
+
+  sTemp = "";
+  sTemp.concat(senOverview[1].name);
+  sTemp.concat(": ");
+  sTemp.concat(senOverview[1].value);
+  sTemp.concat(" ");
+  sTemp.concat(senOverview[1].unit);
+  sTemp.toCharArray(cTemp, 20);
+  u8g.drawStr(0, 63, cTemp);
+
+  // mostra a velocidade
+  u8g.setFont(u8g_font_fub20);
+
+  sTemp = "";
+  sTemp.concat((int)(sensors[SENSOR_SPEED_ID].value));
+  sTemp.toCharArray(cTemp, 4);
+  if (sensors[SENSOR_SPEED_ID].value >= 100)
+    u8g.drawStr(30, 33, cTemp);
+  else if (sensors[SENSOR_SPEED_ID].value >= 10)
+    u8g.drawStr(37, 33, cTemp);
+  else
+    u8g.drawStr(45, 33, cTemp);
+
+  u8g.setFont(u8g_font_5x7);
+
+  sTemp = "";
+  sTemp.concat(sensors[SENSOR_SPEED_ID].unit);
+  sTemp.toCharArray(cTemp, 20);
+  u8g.drawStr(80, 33, cTemp);
+
+  // mostra a marcha
+  u8g.setFont(u8g_font_5x7);
+
+  if (sensors[SENSOR_GEAR_ID].value >= SENSOR_GEAR_MIN && sensors[SENSOR_GEAR_ID].value <= SENSOR_GEAR_MAX)
+  {
+    sTemp = sensors[SENSOR_GEAR_ID].name;
+    sTemp += ": ";
+    if ((int)(sensors[SENSOR_GEAR_ID].value) == 0)
+      sTemp += "N";
+    else if ((int)(sensors[SENSOR_GEAR_ID].value) == 1)
+      sTemp += "1st";
+    else if ((int)(sensors[SENSOR_GEAR_ID].value) == 2)
+      sTemp += "2nd";
+    else if ((int)(sensors[SENSOR_GEAR_ID].value) == 3)
+      sTemp += "3rd";
+    else
+    {
+      sTemp += (int)(sensors[SENSOR_GEAR_ID].value);
+      sTemp += "th";
     }
+
+    sTemp.toCharArray(cTemp, 20);
+    u8g.drawStr(80, 23, cTemp);
 
     // mostra erros na tela
     if (flagErrorsFound)
