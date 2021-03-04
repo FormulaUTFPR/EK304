@@ -595,9 +595,9 @@ String stringFileName;
 // cria instância do display de LCD (configura pinos) https://github.com/olikraus/u8glib/wiki/device#st7920-128x64
 // U8GLIB_ST7920_128X64_1X(sck, mosi, cs [, reset])
 
-U8GLIB_ST7920_128X64_1X u8g(LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7, LCD_EN, LCD_RS, LCD_RW, LCD_RE);
+U8GLIB_ST7920_128X64_1X u8g(LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7, LCD_EN, LCD_RS, LCD_RW, LCD_RE); // SERIAL - USO PARA DISPLAY NO PAINEL USANDO MUITOS CABOS
 
-//U8GLIB_ST7920_128X64_1X u8g(LCD_EN, LCD_RW, LCD_RS); //SPI-
+//U8GLIB_ST7920_128X64_1X u8g(LCD_EN, LCD_RW, LCD_RS); // SPI - USO PARA O DISPLAY NO VOLANTE
 
 // cria uma instância do módulo transciever CAN (configura pino CS)
 MCP2515 mcp2515(SPI_CS_CAN);
@@ -1760,7 +1760,7 @@ void isrEncoderSpin()
     else
       flagEncoderClockwiseSpin = digitalRead(ENC_DT);
 
-    Serial.println("ENCODERRR");
+    //Serial.println("ENCODERRR");
 
     flagEncoderSpinEvent = true;
   }
